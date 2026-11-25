@@ -2,10 +2,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using MiniRec.Models;
 using MiniRec.Native;
 using MiniRec.Services;
+using MiniRec.Views;
+using Drawing = System.Drawing;
+using DrawingImaging = System.Drawing.Imaging;
 using MF = MiniRec.Native.MediaFoundationInterop;
 using Wpf = System.Windows;
+using Media = System.Windows.Media;
+using Imaging = System.Windows.Media.Imaging;
 
 namespace MiniRec;
 
@@ -35,7 +41,17 @@ public partial class App : Wpf.Application
 
         var window = new MainWindow();
         MainWindow = window;
-        window.Show();
+
+        bool startMinimized = e.Args.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase));
+        if (startMinimized)
+        {
+            // Ensure HWND is created so global hotkeys register silently without flashing UI.
+            new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+        }
+        else
+        {
+            window.Show();
+        }
     }
 
     protected override void OnExit(Wpf.ExitEventArgs e)
@@ -133,15 +149,19 @@ public partial class App : Wpf.Application
             Fail("音频缓冲与混音限幅", $"readLen={readLen}, mixed=({mixedShorts[0]},{mixedShorts[1]},{mixedShorts[2]})");
         }
 
-        // 4. 配置默认值与持久化（含 FPS 与 AudioMode）
+        // 4. 配置默认值与持久化（含 FPS、AudioMode 与默认零冲突热键）
         var defaultCfg = new AppConfig();
-        if (defaultCfg.Fps != 60 || defaultCfg.AudioMode != AudioCaptureMode.Both)
+        string defaultShotKey = HotkeyFormatter.Format(defaultCfg.ScreenshotModifiers, defaultCfg.ScreenshotVirtualKey);
+        string defaultRecKey = HotkeyFormatter.Format(defaultCfg.RecordModifiers, defaultCfg.RecordVirtualKey);
+        if (defaultCfg.Fps != 60 || defaultCfg.AudioMode != AudioCaptureMode.Both ||
+            defaultShotKey != "F1" || defaultRecKey != "Shift+F1" ||
+            string.IsNullOrWhiteSpace(defaultCfg.ScreenshotDirectory))
         {
-            Fail("默认配置校验", $"expected 60fps+Both, got {defaultCfg.Fps}fps+{defaultCfg.AudioMode}");
+            Fail("默认配置校验", $"expected 60fps+Both+F1+Shift+F1, got {defaultCfg.Fps}fps+{defaultCfg.AudioMode}+{defaultShotKey}+{defaultRecKey}");
         }
         else
         {
-            Pass("默认配置校验", $"fps={defaultCfg.Fps}, audio={defaultCfg.AudioMode}");
+            Pass("默认配置校验", $"fps={defaultCfg.Fps}, audio={defaultCfg.AudioMode}, shot={defaultShotKey}, rec={defaultRecKey}");
         }
 
         string tempRoot = Path.Combine(Path.GetTempPath(), $"MiniRec_SelfTest_{Guid.NewGuid():N}");
@@ -155,22 +175,191 @@ public partial class App : Wpf.Application
             {
                 RecordModifiers = Win32Interop.MOD_CONTROL | Win32Interop.MOD_SHIFT,
                 RecordVirtualKey = 0x78, // F9
+                ScreenshotModifiers = Win32Interop.MOD_ALT,
+                ScreenshotVirtualKey = 0x41, // A
                 Fps = 60,
                 AudioMode = AudioCaptureMode.Both,
-                OutputDirectory = tempRoot
+                OutputDirectory = tempRoot,
+                ScreenshotDirectory = tempRoot
             };
             store.Save(cfg);
             AppConfig reloaded = store.Load();
             if (reloaded.RecordModifiers == cfg.RecordModifiers &&
                 reloaded.RecordVirtualKey == cfg.RecordVirtualKey &&
+                reloaded.ScreenshotModifiers == cfg.ScreenshotModifiers &&
+                reloaded.ScreenshotVirtualKey == cfg.ScreenshotVirtualKey &&
                 reloaded.Fps == 60 &&
                 reloaded.AudioMode == AudioCaptureMode.Both)
             {
-                Pass("配置持久化", $"fps={reloaded.Fps}, audio={reloaded.AudioMode}");
+                Pass("配置持久化", $"fps={reloaded.Fps}, audio={reloaded.AudioMode}, shotVk=0x{reloaded.ScreenshotVirtualKey:X2}");
             }
             else
             {
                 Fail("配置持久化", "读取回来的配置与写入不一致");
+            }
+
+            // 4.5 冻结截图快照、取色裁剪与 UIA 探测校验
+            byte[] snapBuf = new byte[16 * 16 * 4];
+            for (int y = 0; y < 16; y++)
+            {
+                for (int x = 0; x < 16; x++)
+                {
+                    int idx = (y * 16 + x) * 4;
+                    snapBuf[idx] = (byte)(x * 10);     // B
+                    snapBuf[idx + 1] = (byte)(y * 12); // G
+                    snapBuf[idx + 2] = 200;            // R
+                    snapBuf[idx + 3] = 0;              // simulated GDI zero alpha
+                }
+            }
+
+            var testSnap = new ScreenSnapshot(100, 200, 16, 16, snapBuf);
+            bool pxOk = testSnap.TryGetPixel(103, 205, out byte pr, out byte pg, out byte pb) && pr == 200 && pg == 60 && pb == 30;
+            byte[] magBuf = new byte[5 * 5 * 4];
+            testSnap.CopyMagnifierPatch(103, 205, 5, magBuf);
+            int magCenter = (2 * 5 + 2) * 4;
+            bool magOk = magBuf[magCenter] == 30 && magBuf[magCenter + 1] == 60 && magBuf[magCenter + 2] == 200 && magBuf[magCenter + 3] == 255;
+            byte[] croppedBytes = testSnap.CropRegionBgraBytes(new CaptureRegion(102, 204, 20, 20), out int cw, out int ch);
+            bool cropOk = cw == 14 && ch == 12 && croppedBytes.Length == 14 * 12 * 4 && croppedBytes[3] == 255;
+
+            string liveInfo;
+            int detVx = 0, detVy = 0, detVw = 1920, detVh = 1080;
+            try
+            {
+                ScreenSnapshot liveSnap = ScreenSnapshot.CaptureVirtualScreen();
+                liveInfo = $"{liveSnap.Width}x{liveSnap.Height}";
+                detVx = liveSnap.VirtualX;
+                detVy = liveSnap.VirtualY;
+                detVw = liveSnap.Width;
+                detVh = liveSnap.Height;
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("error=5", StringComparison.Ordinal))
+            {
+                // Locked / non-interactive desktop session denies BitBlt with ERROR_ACCESS_DENIED.
+                liveInfo = "skipped(no-interactive-desktop)";
+            }
+
+            var winList = Win32Interop.EnumerateVisibleWindowsWithHwnd(Environment.ProcessId);
+            using var detector = new UiElementDetector(winList, (detVx, detVy, detVw, detVh), Environment.ProcessId);
+            _ = detector.GetCandidateRegionsAt(detVx + detVw / 2, detVy + detVh / 2);
+
+            if (pxOk && magOk && cropOk)
+            {
+                Pass("截图快照与 UIA 探测", $"live={liveInfo}, crop={cw}x{ch}, windows={winList.Count}");
+            }
+            else
+            {
+                Fail("截图快照与 UIA 探测", $"px={pxOk}, mag={magOk}, crop={cropOk}, live={liveInfo}");
+            }
+
+            // 4.6 Phase 2 马赛克处理器、标注命令栈与物理像素合成校验
+            byte[] pixData = new byte[16 * 16 * 4];
+            byte[] blurData = new byte[16 * 16 * 4];
+            for (int y = 0; y < 16; y++)
+            {
+                for (int x = 0; x < 16; x++)
+                {
+                    int idx = (y * 16 + x) * 4;
+                    byte val = ((x + y) % 2 == 0) ? (byte)240 : (byte)20;
+                    pixData[idx] = val; pixData[idx + 1] = val; pixData[idx + 2] = val; pixData[idx + 3] = 255;
+                    blurData[idx] = val; blurData[idx + 1] = val; blurData[idx + 2] = val; blurData[idx + 3] = 255;
+                }
+            }
+            MosaicProcessor.ApplyPixelate(pixData, 16, 16, 4);
+            MosaicProcessor.ApplyBoxBlur(blurData, 16, 16, 2);
+            bool mosaicOk = pixData[0] == pixData[4] && pixData[3] == 255 &&
+                            blurData[0] > 40 && blurData[0] < 220 && blurData[3] == 255;
+
+            var engine = new AnnotationEngine();
+            var annoStyle = new AnnotationStyle(Media.Color.FromRgb(239, 68, 68));
+            var r1 = new RectAnnotation(annoStyle, new Wpf.Point(10, 10), new Wpf.Point(60, 50));
+            var a1 = new ArrowAnnotation(annoStyle, new Wpf.Point(15, 60), new Wpf.Point(90, 80));
+            var b1 = new NumberBadgeAnnotation(annoStyle, new Wpf.Point(30, 30), engine.NextBadgeNumber());
+            engine.Add(r1);
+            engine.Add(a1);
+            engine.Add(b1);
+            int num2 = engine.NextBadgeNumber();
+            var b2 = new NumberBadgeAnnotation(annoStyle, new Wpf.Point(60, 30), num2);
+            engine.Add(b2);
+            r1.Translate(5, 5);
+            engine.RecordMove(r1, 5, 5);
+            engine.Delete(a1);
+            bool undoRedoOk = engine.Items.Count == 3 &&
+                              engine.Undo() && engine.Items.Count == 4 &&
+                              engine.Undo() && r1.Start.X == 10 &&
+                              engine.Redo() && r1.Start.X == 15 &&
+                              num2 == 2;
+
+            byte[] compBase = new byte[120 * 100 * 4];
+            var compSnap = new ScreenSnapshot(0, 0, 120, 100, compBase);
+            var compRegion = new CaptureRegion(0, 0, 120, 100);
+            engine.Add(new MosaicAnnotation(annoStyle, MosaicMode.Pixel, 8, 18, [new Wpf.Point(20, 20), new Wpf.Point(80, 20)]));
+            engine.Add(new TextAnnotation(annoStyle, new Wpf.Point(20, 70), "MiniRec"));
+            Imaging.BitmapSource compBmp = engine.RenderCompositeBitmap(compSnap, compRegion);
+            byte[] compOut = new byte[120 * 100 * 4];
+            compBmp.CopyPixels(compOut, 120 * 4, 0);
+            bool hasNonZeroPixel = false;
+            for (int i = 0; i < compOut.Length; i += 4)
+            {
+                if (compOut[i] != 0 || compOut[i + 1] != 0 || compOut[i + 2] != 0)
+                {
+                    hasNonZeroPixel = true;
+                    break;
+                }
+            }
+
+            if (mosaicOk && undoRedoOk && compBmp.PixelWidth == 120 && compBmp.PixelHeight == 100 && hasNonZeroPixel)
+            {
+                Pass("标注引擎与物理像素合成", $"mosaic=OK, undoRedo=OK, composite={compBmp.PixelWidth}x{compBmp.PixelHeight}");
+            }
+            else
+            {
+                Fail("标注引擎与物理像素合成", $"mosaic={mosaicOk}, undoRedo={undoRedoOk}, size={compBmp.PixelWidth}x{compBmp.PixelHeight}, nonZero={hasNonZeroPixel}");
+            }
+
+            // 4.7 Phase 3 关闭行为配置 + Win11 原生离线 OCR 端到端实测
+            var closeCfg = new AppConfig { CloseBehavior = CloseButtonBehavior.MinimizeToTray };
+            store.Save(closeCfg);
+            AppConfig reloadedClose = store.Load();
+            string cleanedCjk = NativeOcrService.CleanCjkSpaces("微 信 截 图 MiniRec 2026 测试");
+            bool cjkCleanOk = reloadedClose.CloseBehavior == CloseButtonBehavior.MinimizeToTray &&
+                              cleanedCjk == "微信截图 MiniRec 2026 测试";
+
+            byte[] ocrBgra = RenderOcrTestBgra("MiniRec 2026 测试", 400, 100);
+            OcrDocumentResult ocrRes = NativeOcrService.RecognizeBgraAsync(ocrBgra, 400, 100).GetAwaiter().GetResult();
+            bool hasWords = ocrRes.Lines.Count > 0 && ocrRes.Lines[0].Words.Count > 0;
+            string partialSelect = hasWords && ocrRes.Lines[0].Words.Count >= 2
+                ? NativeOcrService.ExtractSelectedText(ocrRes.Lines, 0, 0, 0, 1, joinLines: false)
+                : string.Empty;
+            var syntheticLines = new List<OcrLineResult>
+            {
+                new("微信截图", new Wpf.Rect(0, 0, 80, 20), [
+                    new OcrWordResult("微", new Wpf.Rect(0, 0, 20, 20)),
+                    new OcrWordResult("信", new Wpf.Rect(20, 0, 20, 20)),
+                    new OcrWordResult("截", new Wpf.Rect(40, 0, 20, 20)),
+                    new OcrWordResult("图", new Wpf.Rect(60, 0, 20, 20))
+                ]),
+                new("MiniRec 2026", new Wpf.Rect(0, 30, 120, 20), [
+                    new OcrWordResult("MiniRec", new Wpf.Rect(0, 30, 60, 20)),
+                    new OcrWordResult("2026", new Wpf.Rect(65, 30, 50, 20))
+                ])
+            };
+            string rangeText = NativeOcrService.ExtractSelectedText(syntheticLines, 0, 1, 1, 0, joinLines: false);
+            string joinedRangeText = NativeOcrService.ExtractSelectedText(syntheticLines, 0, 1, 1, 0, joinLines: true);
+            bool extractOk = rangeText == $"信截图{Environment.NewLine}MiniRec" && joinedRangeText == "信截图 MiniRec";
+
+            bool ocrOk = ocrRes.Success &&
+                         hasWords &&
+                         ocrRes.Lines[0].PhysicalBounds.Width > 0 &&
+                         (ocrRes.FullText.Contains("MiniRec", StringComparison.OrdinalIgnoreCase) ||
+                          ocrRes.FullText.Contains("2026", StringComparison.Ordinal));
+
+            if (cjkCleanOk && extractOk && ocrOk)
+            {
+                Pass("Win11 原生离线 OCR", $"lines={ocrRes.Lines.Count}, words={ocrRes.Lines[0].Words.Count}, partial=\"{partialSelect}\"");
+            }
+            else
+            {
+                Fail("Win11 原生离线 OCR", $"cjkClean={cjkCleanOk}, extract={extractOk}, success={ocrRes.Success}, lines={ocrRes.Lines.Count}, text=\"{ocrRes.FullText}\", err={ocrRes.ErrorMessage}");
             }
 
             // 5. Win11 原生 Media Foundation H.264 + AAC MP4 真实编码测试（在 MTA 线程执行）
@@ -363,5 +552,34 @@ public partial class App : Wpf.Application
             }
         }
         return null;
+    }
+
+    private static byte[] RenderOcrTestBgra(string text, int width, int height)
+    {
+        using var bmp = new Drawing.Bitmap(width, height, DrawingImaging.PixelFormat.Format32bppArgb);
+        using (var g = Drawing.Graphics.FromImage(bmp))
+        {
+            g.Clear(Drawing.Color.White);
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            using var font = new Drawing.Font("Microsoft YaHei UI", 26f, Drawing.FontStyle.Bold, Drawing.GraphicsUnit.Pixel);
+            using var brush = new Drawing.SolidBrush(Drawing.Color.Black);
+            g.DrawString(text, font, brush, new Drawing.PointF(24f, 30f));
+        }
+
+        var rect = new Drawing.Rectangle(0, 0, width, height);
+        DrawingImaging.BitmapData bmpData = bmp.LockBits(rect, DrawingImaging.ImageLockMode.ReadOnly, DrawingImaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            byte[] bgra = new byte[width * height * 4];
+            for (int y = 0; y < height; y++)
+            {
+                Marshal.Copy(bmpData.Scan0 + y * bmpData.Stride, bgra, y * width * 4, width * 4);
+            }
+            return bgra;
+        }
+        finally
+        {
+            bmp.UnlockBits(bmpData);
+        }
     }
 }

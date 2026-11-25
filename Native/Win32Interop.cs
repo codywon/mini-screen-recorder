@@ -253,18 +253,25 @@ internal static class Win32Interop
         }
     }
 
-    public static bool ExcludeFromCapture(IntPtr hwnd)
+    public static bool ExcludeFromCapture(IntPtr hwnd) => SetCaptureExclusion(hwnd, exclude: true);
+
+    public static bool SetCaptureExclusion(IntPtr hwnd, bool exclude)
     {
         if (hwnd == IntPtr.Zero)
         {
             return false;
         }
-        return SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+        return SetWindowDisplayAffinity(hwnd, exclude ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
     }
 
-    public static List<(int X, int Y, int Width, int Height)> EnumerateVisibleWindowRects(int excludeProcessId)
+    public static List<(int X, int Y, int Width, int Height)> EnumerateVisibleWindowRects(int excludeProcessId) =>
+        EnumerateVisibleWindowsWithHwnd(excludeProcessId)
+            .Select(w => (w.X, w.Y, w.Width, w.Height))
+            .ToList();
+
+    public static List<(IntPtr Hwnd, int X, int Y, int Width, int Height)> EnumerateVisibleWindowsWithHwnd(int excludeProcessId)
     {
-        var results = new List<(int X, int Y, int Width, int Height)>();
+        var results = new List<(IntPtr Hwnd, int X, int Y, int Width, int Height)>();
         (int vx, int vy, int vw, int vh) = GetVirtualScreenBounds();
         int vRight = vx + vw;
         int vBottom = vy + vh;
@@ -315,7 +322,7 @@ internal static class Win32Interop
             int height = bottom - top;
             if (width >= 32 && height >= 32)
             {
-                results.Add((left, top, width, height));
+                results.Add((hwnd, left, top, width, height));
             }
 
             return true;

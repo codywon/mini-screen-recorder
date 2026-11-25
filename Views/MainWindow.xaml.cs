@@ -10,24 +10,27 @@ using MiniRec.Services;
 using Wpf = System.Windows;
 using Media = System.Windows.Media;
 
-namespace MiniRec;
+namespace MiniRec.Views;
 
 public partial class MainWindow : Wpf.Window
 {
     private const int HotkeyRecordId = 1;
     private const int HotkeyToggleUiId = 2;
+    private const int HotkeyScreenshotId = 3;
 
     private readonly ConfigStore _configStore = new();
     private readonly ScreenRecorder _recorder = new();
     private readonly TrayService _tray = new();
     private readonly DispatcherTimer _clockTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _bannerTimer = new() { Interval = TimeSpan.FromSeconds(4.5) };
+    private readonly List<PinImageWindow> _pinWindows = [];
 
     private AppConfig _config;
     private DateTime _recordStartUtc;
     private IntPtr _hwnd;
     private HwndSource? _hwndSource;
     private bool _isConfiguringHotkeys;
+    private bool _isCapturingScreenshot;
     private bool _isBusy;
     private bool _allowRealClose;
     private string? _lastSavedFilePath;
@@ -73,14 +76,21 @@ public partial class MainWindow : Wpf.Window
             });
         };
 
+        AutoStartService.SyncPathIfEnabled();
+
+        _tray.ScreenshotClicked += () => Dispatcher.BeginInvoke(StartScreenshot);
         _tray.RecordClicked += () => Dispatcher.BeginInvoke(async () => await ToggleRecordingAsync());
         _tray.SelectRegionClicked += () => Dispatcher.BeginInvoke(SelectRegion);
         _tray.ClearRegionClicked += () => Dispatcher.BeginInvoke(ClearRegion);
+        _tray.CloseAllPinsClicked += () => Dispatcher.BeginInvoke(CloseAllPinWindows);
         _tray.FpsSelected += fps => Dispatcher.BeginInvoke(() => SetFps(fps));
         _tray.AudioModeSelected += mode => Dispatcher.BeginInvoke(() => SetAudioMode(mode));
         _tray.ConfigureHotkeysClicked += () => Dispatcher.BeginInvoke(OpenHotkeySettings);
+        _tray.AutoStartToggled += () => Dispatcher.BeginInvoke(ToggleAutoStart);
+        _tray.CloseBehaviorSelected += behavior => Dispatcher.BeginInvoke(() => SetCloseBehavior(behavior));
         _tray.ToggleUiClicked += () => Dispatcher.BeginInvoke(ToggleVisibility);
         _tray.OpenFolderClicked += () => Dispatcher.BeginInvoke(OpenOutputFolder);
+        _tray.AboutClicked += () => Dispatcher.BeginInvoke(OpenAboutWindow);
         _tray.ExitClicked += () => Dispatcher.BeginInvoke(RequestExit);
 
         Loaded += (_, _) => PositionTopRight();
@@ -100,12 +110,6 @@ public partial class MainWindow : Wpf.Window
         base.OnSourceInitialized(e);
 
         _hwnd = new WindowInteropHelper(this).Handle;
-
-        bool excluded = Win32Interop.ExcludeFromCapture(_hwnd);
-        if (!excluded)
-        {
-            ShowBanner("当前系统不支持录屏隐身 (WDA_EXCLUDEFROMCAPTURE)", isError: true, persistent: true);
-        }
 
         _hwndSource = HwndSource.FromHwnd(_hwnd);
         _hwndSource?.AddHook(WndProc);
@@ -128,6 +132,11 @@ public partial class MainWindow : Wpf.Window
                 handled = true;
                 ToggleVisibility();
             }
+            else if (id == HotkeyScreenshotId)
+            {
+                handled = true;
+                StartScreenshot();
+            }
         }
 
         return IntPtr.Zero;
@@ -139,6 +148,7 @@ public partial class MainWindow : Wpf.Window
 
         Win32Interop.UnregisterHotKey(_hwnd, HotkeyRecordId);
         Win32Interop.UnregisterHotKey(_hwnd, HotkeyToggleUiId);
+        Win32Interop.UnregisterHotKey(_hwnd, HotkeyScreenshotId);
 
         bool recOk = Win32Interop.RegisterHotKey(
             _hwnd,
@@ -152,15 +162,25 @@ public partial class MainWindow : Wpf.Window
             _config.ToggleUiModifiers | Win32Interop.MOD_NOREPEAT,
             _config.ToggleUiVirtualKey);
 
+        bool shotOk = Win32Interop.RegisterHotKey(
+            _hwnd,
+            HotkeyScreenshotId,
+            _config.ScreenshotModifiers | Win32Interop.MOD_NOREPEAT,
+            _config.ScreenshotVirtualKey);
+
         if (showFeedbackOnError)
         {
             if (!recOk)
             {
-                ShowBanner($"快捷键 {HotkeyFormatter.Format(_config.RecordModifiers, _config.RecordVirtualKey)} 被占用，请点击按钮修改", isError: true, persistent: true);
+                ShowBanner($"录制快捷键 {HotkeyFormatter.Format(_config.RecordModifiers, _config.RecordVirtualKey)} 被占用，托盘可改", isError: true, persistent: true);
             }
             else if (!uiOk)
             {
                 ShowBanner($"显隐快捷键 {HotkeyFormatter.Format(_config.ToggleUiModifiers, _config.ToggleUiVirtualKey)} 被占用", isError: true);
+            }
+            else if (!shotOk)
+            {
+                ShowBanner($"截图快捷键 {HotkeyFormatter.Format(_config.ScreenshotModifiers, _config.ScreenshotVirtualKey)} 被占用，托盘可改", isError: true);
             }
         }
 
@@ -179,7 +199,7 @@ public partial class MainWindow : Wpf.Window
             {
                 _clockTimer.Stop();
                 CloseGuideWindow();
-                RecordButton.Content = "保存中...";
+                RecordButton.ToolTip = "正在保存 MP4...";
                 RecordStopResult result = await _recorder.StopAsync();
                 SetRecordingVisualState(false);
 
@@ -197,7 +217,11 @@ public partial class MainWindow : Wpf.Window
             else
             {
                 _lastSavedFilePath = null;
-                RecordButton.Content = "启动中...";
+                RecordButton.ToolTip = "正在启动录屏...";
+                if (_hwnd != IntPtr.Zero)
+                {
+                    Win32Interop.SetCaptureExclusion(_hwnd, true);
+                }
                 RecordStartResult result = await _recorder.StartAsync(
                     _config.OutputDirectory,
                     _config.Fps,
@@ -239,6 +263,11 @@ public partial class MainWindow : Wpf.Window
 
     private void SetRecordingVisualState(bool isRecording)
     {
+        if (_hwnd != IntPtr.Zero)
+        {
+            Win32Interop.SetCaptureExclusion(_hwnd, isRecording);
+        }
+
         RegionButton.IsEnabled = !isRecording;
         RegionButton.Opacity = isRecording ? 0.5 : 1.0;
         FpsButton.IsEnabled = !isRecording;
@@ -248,20 +277,25 @@ public partial class MainWindow : Wpf.Window
 
         if (isRecording)
         {
-            RecordButton.Content = "■ 停止";
+            RecordIconIdle.Visibility = Wpf.Visibility.Collapsed;
+            RecordIconStop.Visibility = Wpf.Visibility.Visible;
             RecordButton.Background = new Media.SolidColorBrush(Media.Color.FromRgb(220, 38, 38));
+            RecordButton.BorderBrush = new Media.SolidColorBrush(Media.Color.FromRgb(239, 68, 68));
             StatusDot.Fill = new Media.SolidColorBrush(Media.Color.FromRgb(239, 68, 68));
             StartDotPulse();
         }
         else
         {
             StopDotPulse();
-            RecordButton.Content = "● 录制";
-            RecordButton.Background = new Media.SolidColorBrush(Media.Color.FromRgb(239, 68, 68));
+            RecordIconIdle.Visibility = Wpf.Visibility.Visible;
+            RecordIconStop.Visibility = Wpf.Visibility.Collapsed;
+            RecordButton.Background = new Media.SolidColorBrush(Media.Color.FromRgb(30, 41, 59));
+            RecordButton.BorderBrush = new Media.SolidColorBrush(Media.Color.FromRgb(51, 65, 85));
             StatusDot.Fill = new Media.SolidColorBrush(Media.Color.FromRgb(100, 116, 139));
             TimerText.Text = "00:00";
         }
 
+        UpdateTooltipsWithHotkeys();
         SyncTrayState();
     }
 
@@ -291,7 +325,18 @@ public partial class MainWindow : Wpf.Window
     {
         string recKey = HotkeyFormatter.Format(_config.RecordModifiers, _config.RecordVirtualKey);
         string uiKey = HotkeyFormatter.Format(_config.ToggleUiModifiers, _config.ToggleUiVirtualKey);
-        _tray.UpdateState(_recorder.IsRecording, recKey, uiKey, _selectedRegion, _config.Fps, _config.AudioMode);
+        string shotKey = HotkeyFormatter.Format(_config.ScreenshotModifiers, _config.ScreenshotVirtualKey);
+        _tray.UpdateState(
+            _recorder.IsRecording,
+            recKey,
+            uiKey,
+            _selectedRegion,
+            _config.Fps,
+            _config.AudioMode,
+            shotKey,
+            _pinWindows.Count,
+            AutoStartService.IsEnabled(),
+            _config.CloseBehavior);
     }
 
     private void UpdateFpsButton()
@@ -334,6 +379,8 @@ public partial class MainWindow : Wpf.Window
     {
         string recKey = HotkeyFormatter.Format(_config.RecordModifiers, _config.RecordVirtualKey);
         string uiKey = HotkeyFormatter.Format(_config.ToggleUiModifiers, _config.ToggleUiVirtualKey);
+        string shotKey = HotkeyFormatter.Format(_config.ScreenshotModifiers, _config.ScreenshotVirtualKey);
+        ScreenshotButton.ToolTip = $"屏幕截图（快捷键 {shotKey}）";
         RecordButton.ToolTip = $"开始/停止录制（快捷键 {recKey}，托盘可修改）";
         HideButton.ToolTip = $"隐藏到系统托盘（快捷键 {uiKey} 恢复）";
     }
@@ -488,6 +535,8 @@ public partial class MainWindow : Wpf.Window
                 _config.RecordVirtualKey,
                 _config.ToggleUiModifiers,
                 _config.ToggleUiVirtualKey,
+                _config.ScreenshotModifiers,
+                _config.ScreenshotVirtualKey,
                 TryApplyHotkeys);
 
             if (dlg.ShowDialog() == true)
@@ -496,6 +545,8 @@ public partial class MainWindow : Wpf.Window
                 _config.RecordVirtualKey = dlg.RecordVirtualKey;
                 _config.ToggleUiModifiers = dlg.ToggleUiModifiers;
                 _config.ToggleUiVirtualKey = dlg.ToggleUiVirtualKey;
+                _config.ScreenshotModifiers = dlg.ScreenshotModifiers;
+                _config.ScreenshotVirtualKey = dlg.ScreenshotVirtualKey;
                 _configStore.Save(_config);
 
                 UpdateTooltipsWithHotkeys();
@@ -504,7 +555,7 @@ public partial class MainWindow : Wpf.Window
                 if (IsVisible)
                 {
                     ShowBanner(
-                        $"✓ 快捷键已更新（录制 {HotkeyFormatter.Format(_config.RecordModifiers, _config.RecordVirtualKey)}）",
+                        $"✓ 快捷键已更新（截图 {HotkeyFormatter.Format(_config.ScreenshotModifiers, _config.ScreenshotVirtualKey)} · 录制 {HotkeyFormatter.Format(_config.RecordModifiers, _config.RecordVirtualKey)}）",
                         isError: false);
                 }
             }
@@ -515,7 +566,7 @@ public partial class MainWindow : Wpf.Window
         }
     }
 
-    private string? TryApplyHotkeys(uint recMods, uint recVk, uint uiMods, uint uiVk)
+    private string? TryApplyHotkeys(uint recMods, uint recVk, uint uiMods, uint uiVk, uint shotMods, uint shotVk)
     {
         if (_hwnd == IntPtr.Zero) return "窗口尚未就绪";
 
@@ -523,28 +574,161 @@ public partial class MainWindow : Wpf.Window
         uint oldRecVk = _config.RecordVirtualKey;
         uint oldUiMods = _config.ToggleUiModifiers;
         uint oldUiVk = _config.ToggleUiVirtualKey;
+        uint oldShotMods = _config.ScreenshotModifiers;
+        uint oldShotVk = _config.ScreenshotVirtualKey;
 
         Win32Interop.UnregisterHotKey(_hwnd, HotkeyRecordId);
         Win32Interop.UnregisterHotKey(_hwnd, HotkeyToggleUiId);
+        Win32Interop.UnregisterHotKey(_hwnd, HotkeyScreenshotId);
 
-        bool recOk = Win32Interop.RegisterHotKey(_hwnd, HotkeyRecordId, recMods | Win32Interop.MOD_NOREPEAT, recVk);
-        if (!recOk)
+        void RestoreOldHotkeys()
         {
+            Win32Interop.UnregisterHotKey(_hwnd, HotkeyRecordId);
+            Win32Interop.UnregisterHotKey(_hwnd, HotkeyToggleUiId);
+            Win32Interop.UnregisterHotKey(_hwnd, HotkeyScreenshotId);
             Win32Interop.RegisterHotKey(_hwnd, HotkeyRecordId, oldRecMods | Win32Interop.MOD_NOREPEAT, oldRecVk);
             Win32Interop.RegisterHotKey(_hwnd, HotkeyToggleUiId, oldUiMods | Win32Interop.MOD_NOREPEAT, oldUiVk);
+            Win32Interop.RegisterHotKey(_hwnd, HotkeyScreenshotId, oldShotMods | Win32Interop.MOD_NOREPEAT, oldShotVk);
+        }
+
+        if (!Win32Interop.RegisterHotKey(_hwnd, HotkeyRecordId, recMods | Win32Interop.MOD_NOREPEAT, recVk))
+        {
+            RestoreOldHotkeys();
             return $"录制快捷键 {HotkeyFormatter.Format(recMods, recVk)} 已被其他程序占用";
         }
 
-        bool uiOk = Win32Interop.RegisterHotKey(_hwnd, HotkeyToggleUiId, uiMods | Win32Interop.MOD_NOREPEAT, uiVk);
-        if (!uiOk)
+        if (!Win32Interop.RegisterHotKey(_hwnd, HotkeyToggleUiId, uiMods | Win32Interop.MOD_NOREPEAT, uiVk))
         {
-            Win32Interop.UnregisterHotKey(_hwnd, HotkeyRecordId);
-            Win32Interop.RegisterHotKey(_hwnd, HotkeyRecordId, oldRecMods | Win32Interop.MOD_NOREPEAT, oldRecVk);
-            Win32Interop.RegisterHotKey(_hwnd, HotkeyToggleUiId, oldUiMods | Win32Interop.MOD_NOREPEAT, oldUiVk);
+            RestoreOldHotkeys();
             return $"显隐快捷键 {HotkeyFormatter.Format(uiMods, uiVk)} 已被其他程序占用";
         }
 
+        if (!Win32Interop.RegisterHotKey(_hwnd, HotkeyScreenshotId, shotMods | Win32Interop.MOD_NOREPEAT, shotVk))
+        {
+            RestoreOldHotkeys();
+            return $"截图快捷键 {HotkeyFormatter.Format(shotMods, shotVk)} 已被其他程序占用";
+        }
+
         return null;
+    }
+
+    private void StartScreenshot()
+    {
+        if (_isConfiguringHotkeys || _isCapturingScreenshot) return;
+        _isCapturingScreenshot = true;
+
+        bool wasVisible = IsVisible;
+        ScreenshotOverlayWindow? overlay = null;
+
+        try
+        {
+            if (wasVisible)
+            {
+                Hide();
+                Dispatcher.Invoke(() => { }, DispatcherPriority.Render);
+                Thread.Sleep(35);
+            }
+
+            ScreenSnapshot snapshot = ScreenSnapshot.CaptureVirtualScreen();
+            List<(IntPtr Hwnd, int X, int Y, int Width, int Height)> topWindows =
+                Win32Interop.EnumerateVisibleWindowsWithHwnd(Environment.ProcessId);
+
+            overlay = new ScreenshotOverlayWindow(snapshot, topWindows, _config.ScreenshotDirectory);
+            overlay.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            if (wasVisible)
+            {
+                Show();
+                Activate();
+            }
+            ShowBanner($"截图失败：{ex.Message}", isError: true);
+            return;
+        }
+        finally
+        {
+            _isCapturingScreenshot = false;
+        }
+
+        if (wasVisible)
+        {
+            Show();
+            Activate();
+        }
+
+        if (overlay is null) return;
+
+        switch (overlay.Outcome)
+        {
+            case ScreenshotOverlayOutcome.Copied:
+                ShowBanner("✓ 截图已复制到剪贴板", isError: false);
+                break;
+
+            case ScreenshotOverlayOutcome.Saved when !string.IsNullOrWhiteSpace(overlay.SavedFilePath):
+                _lastSavedFilePath = overlay.SavedFilePath;
+                ShowBanner($"✓ 已保存 {Path.GetFileName(overlay.SavedFilePath)}（点击定位文件）", isError: false);
+                break;
+
+            case ScreenshotOverlayOutcome.Pinned when overlay.ResultBitmap is not null && overlay.SelectedRegion is not null:
+                var pin = new PinImageWindow(overlay.ResultBitmap, overlay.SelectedRegion, _config.ScreenshotDirectory);
+                pin.CloseAllRequested += CloseAllPinWindows;
+                pin.Closed += (_, _) =>
+                {
+                    _pinWindows.Remove(pin);
+                    SyncTrayState();
+                };
+                _pinWindows.Add(pin);
+                SyncTrayState();
+                pin.Show();
+                break;
+
+            case ScreenshotOverlayOutcome.StartRecording when overlay.SelectedRegion is not null:
+                if (_recorder.IsRecording || _isBusy)
+                {
+                    ShowBanner("请先停止当前录制再开始新选区录制", isError: true);
+                    return;
+                }
+                _selectedRegion = overlay.SelectedRegion.Normalize();
+                UpdateRegionButton();
+                SyncTrayState();
+                _ = ToggleRecordingAsync();
+                break;
+
+            case ScreenshotOverlayOutcome.OpenOcrWindow when overlay.OcrResult is not null:
+                Wpf.Rect? anchorDip = null;
+                if (overlay.SelectedRegion is { } sel)
+                {
+                    Wpf.PresentationSource? src = Wpf.PresentationSource.FromVisual(this);
+                    if (src?.CompositionTarget is not null)
+                    {
+                        Media.Matrix m = src.CompositionTarget.TransformFromDevice;
+                        Wpf.Point tl = m.Transform(new Wpf.Point(sel.X, sel.Y));
+                        Wpf.Point br = m.Transform(new Wpf.Point(sel.X + sel.Width, sel.Y + sel.Height));
+                        anchorDip = new Wpf.Rect(tl, br);
+                    }
+                }
+                var ocrWin = new OcrResultWindow(overlay.OcrResult, anchorDip);
+                ocrWin.Show();
+                break;
+        }
+    }
+
+    private void CloseAllPinWindows()
+    {
+        foreach (PinImageWindow pin in _pinWindows.ToArray())
+        {
+            try
+            {
+                pin.Close();
+            }
+            catch
+            {
+                // Ignore if already closed.
+            }
+        }
+        _pinWindows.Clear();
+        SyncTrayState();
     }
 
     private void ToggleVisibility()
@@ -605,6 +789,11 @@ public partial class MainWindow : Wpf.Window
         await ToggleRecordingAsync();
     }
 
+    private void ScreenshotButton_Click(object sender, Wpf.RoutedEventArgs e)
+    {
+        StartScreenshot();
+    }
+
     private void RegionButton_Click(object sender, Wpf.RoutedEventArgs e)
     {
         SelectRegion();
@@ -645,9 +834,81 @@ public partial class MainWindow : Wpf.Window
         Hide();
     }
 
+    private void ToggleAutoStart()
+    {
+        bool target = !AutoStartService.IsEnabled();
+        if (AutoStartService.SetEnabled(target, out string? error))
+        {
+            SyncTrayState();
+            if (IsVisible)
+            {
+                ShowBanner(target ? "✓ 已开启开机自启动（静默驻留托盘）" : "已关闭开机自启动", isError: false);
+            }
+        }
+        else
+        {
+            Show();
+            ShowBanner($"设置开机自启动失败：{error}", isError: true);
+        }
+    }
+
+    private void SetCloseBehavior(CloseButtonBehavior behavior)
+    {
+        _config.CloseBehavior = behavior;
+        _configStore.Save(_config);
+        SyncTrayState();
+
+        if (IsVisible)
+        {
+            string label = behavior switch
+            {
+                CloseButtonBehavior.MinimizeToTray => "最小化到系统托盘",
+                CloseButtonBehavior.Exit => "彻底退出程序",
+                _ => "每次询问"
+            };
+            ShowBanner($"关闭按钮行为已设为：{label}", isError: false);
+        }
+    }
+
+    private void OpenAboutWindow()
+    {
+        var about = new AboutWindow();
+        about.ShowDialog();
+    }
+
     private void CloseButton_Click(object sender, Wpf.RoutedEventArgs e)
     {
-        RequestExit();
+        switch (_config.CloseBehavior)
+        {
+            case CloseButtonBehavior.MinimizeToTray:
+                Hide();
+                return;
+            case CloseButtonBehavior.Exit:
+                RequestExit();
+                return;
+        }
+
+        var dlg = new CloseConfirmWindow();
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (dlg.RememberChoice)
+        {
+            _config.CloseBehavior = dlg.ChosenBehavior;
+            _configStore.Save(_config);
+            SyncTrayState();
+        }
+
+        if (dlg.ChosenBehavior == CloseButtonBehavior.MinimizeToTray)
+        {
+            Hide();
+        }
+        else if (dlg.ChosenBehavior == CloseButtonBehavior.Exit)
+        {
+            RequestExit();
+        }
     }
 
     private void StatusBanner_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -701,11 +962,13 @@ public partial class MainWindow : Wpf.Window
         _bannerTimer.Stop();
         StopDotPulse();
         CloseGuideWindow();
+        CloseAllPinWindows();
 
         if (_hwnd != IntPtr.Zero)
         {
             Win32Interop.UnregisterHotKey(_hwnd, HotkeyRecordId);
             Win32Interop.UnregisterHotKey(_hwnd, HotkeyToggleUiId);
+            Win32Interop.UnregisterHotKey(_hwnd, HotkeyScreenshotId);
         }
 
         _hwndSource?.RemoveHook(WndProc);

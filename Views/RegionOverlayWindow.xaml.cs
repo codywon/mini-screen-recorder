@@ -7,7 +7,7 @@ using Input = System.Windows.Input;
 using Media = System.Windows.Media;
 using Shapes = System.Windows.Shapes;
 
-namespace MiniRec;
+namespace MiniRec.Views;
 
 public partial class RegionOverlayWindow : Wpf.Window
 {
@@ -52,7 +52,6 @@ public partial class RegionOverlayWindow : Wpf.Window
         base.OnSourceInitialized(e);
 
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        Win32Interop.ExcludeFromCapture(hwnd);
 
         _virtualBounds = Win32Interop.GetVirtualScreenBounds();
         Win32Interop.SetWindowPos(

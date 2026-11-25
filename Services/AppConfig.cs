@@ -5,19 +5,31 @@ using Forms = System.Windows.Forms;
 
 namespace MiniRec.Services;
 
+internal enum CloseButtonBehavior
+{
+    Ask = 0,
+    MinimizeToTray = 1,
+    Exit = 2
+}
+
 internal sealed class AppConfig
 {
     public static readonly int[] SupportedFps = [15, 24, 30, 60];
 
-    public uint RecordModifiers { get; set; } = Win32Interop.MOD_CONTROL | Win32Interop.MOD_ALT;
-    public uint RecordVirtualKey { get; set; } = 0x52; // R
+    public uint RecordModifiers { get; set; } = Win32Interop.MOD_SHIFT;
+    public uint RecordVirtualKey { get; set; } = 0x70; // F1
 
     public uint ToggleUiModifiers { get; set; } = Win32Interop.MOD_CONTROL | Win32Interop.MOD_ALT;
     public uint ToggleUiVirtualKey { get; set; } = 0x48; // H
 
+    public uint ScreenshotModifiers { get; set; } = 0;
+    public uint ScreenshotVirtualKey { get; set; } = 0x70; // F1
+
     public string OutputDirectory { get; set; } = GetDefaultOutputDirectory();
+    public string ScreenshotDirectory { get; set; } = GetDefaultScreenshotDirectory();
     public int Fps { get; set; } = 60;
     public AudioCaptureMode AudioMode { get; set; } = AudioCaptureMode.Both;
+    public CloseButtonBehavior CloseBehavior { get; set; } = CloseButtonBehavior.Ask;
 
     public static string GetDefaultOutputDirectory()
     {
@@ -27,6 +39,16 @@ internal sealed class AppConfig
             videos = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         }
         return Path.Combine(videos, "MiniRec");
+    }
+
+    public static string GetDefaultScreenshotDirectory()
+    {
+        string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+        if (string.IsNullOrWhiteSpace(pictures))
+        {
+            pictures = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+        return Path.Combine(pictures, "MiniRec");
     }
 }
 
@@ -69,6 +91,10 @@ internal sealed class ConfigStore
             {
                 loaded.OutputDirectory = AppConfig.GetDefaultOutputDirectory();
             }
+            if (string.IsNullOrWhiteSpace(loaded.ScreenshotDirectory))
+            {
+                loaded.ScreenshotDirectory = AppConfig.GetDefaultScreenshotDirectory();
+            }
             if (!AppConfig.SupportedFps.Contains(loaded.Fps))
             {
                 loaded.Fps = 60;
@@ -77,15 +103,24 @@ internal sealed class ConfigStore
             {
                 loaded.AudioMode = AudioCaptureMode.Both;
             }
+            if (!Enum.IsDefined(loaded.CloseBehavior))
+            {
+                loaded.CloseBehavior = CloseButtonBehavior.Ask;
+            }
             if (loaded.RecordVirtualKey == 0)
             {
-                loaded.RecordModifiers = Win32Interop.MOD_CONTROL | Win32Interop.MOD_ALT;
-                loaded.RecordVirtualKey = 0x52;
+                loaded.RecordModifiers = Win32Interop.MOD_SHIFT;
+                loaded.RecordVirtualKey = 0x70;
             }
             if (loaded.ToggleUiVirtualKey == 0)
             {
                 loaded.ToggleUiModifiers = Win32Interop.MOD_CONTROL | Win32Interop.MOD_ALT;
                 loaded.ToggleUiVirtualKey = 0x48;
+            }
+            if (loaded.ScreenshotVirtualKey == 0)
+            {
+                loaded.ScreenshotModifiers = 0;
+                loaded.ScreenshotVirtualKey = 0x70;
             }
 
             return loaded;

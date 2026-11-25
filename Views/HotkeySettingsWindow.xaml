@@ -1,4 +1,4 @@
-<Window x:Class="MiniRec.HotkeySettingsWindow"
+<Window x:Class="MiniRec.Views.HotkeySettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="快捷键设置 - MiniRec"
@@ -139,6 +139,18 @@
                         HorizontalAlignment="Right"
                         Style="{StaticResource KeyPickBtnStyle}"
                         Click="ToggleUiHotkeyBtn_Click" />
+            </Grid>
+
+            <!-- 屏幕截图快捷键 -->
+            <Grid Margin="0,0,0,10">
+                <TextBlock Text="屏幕截图"
+                           Foreground="#CBD5E1"
+                           FontSize="12.5"
+                           VerticalAlignment="Center" />
+                <Button x:Name="ScreenshotHotkeyBtn"
+                        HorizontalAlignment="Right"
+                        Style="{StaticResource KeyPickBtnStyle}"
+                        Click="ScreenshotHotkeyBtn_Click" />
             </Grid>
 
             <!-- 内联提示 -->

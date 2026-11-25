@@ -5,7 +5,7 @@ using Wpf = System.Windows;
 using Input = System.Windows.Input;
 using Media = System.Windows.Media;
 
-namespace MiniRec;
+namespace MiniRec.Views;
 
 public partial class HotkeySettingsWindow : Wpf.Window
 {
@@ -13,10 +13,11 @@ public partial class HotkeySettingsWindow : Wpf.Window
     {
         None,
         Record,
-        ToggleUi
+        ToggleUi,
+        Screenshot
     }
 
-    private readonly Func<uint, uint, uint, uint, string?> _applyCallback;
+    private readonly Func<uint, uint, uint, uint, uint, uint, string?> _applyCallback;
 
     private CaptureTarget _capturing = CaptureTarget.None;
 
@@ -24,13 +25,17 @@ public partial class HotkeySettingsWindow : Wpf.Window
     internal uint RecordVirtualKey { get; private set; }
     internal uint ToggleUiModifiers { get; private set; }
     internal uint ToggleUiVirtualKey { get; private set; }
+    internal uint ScreenshotModifiers { get; private set; }
+    internal uint ScreenshotVirtualKey { get; private set; }
 
     public HotkeySettingsWindow(
         uint recordModifiers,
         uint recordVirtualKey,
         uint toggleUiModifiers,
         uint toggleUiVirtualKey,
-        Func<uint, uint, uint, uint, string?> applyCallback)
+        uint screenshotModifiers,
+        uint screenshotVirtualKey,
+        Func<uint, uint, uint, uint, uint, uint, string?> applyCallback)
     {
         InitializeComponent();
 
@@ -38,16 +43,11 @@ public partial class HotkeySettingsWindow : Wpf.Window
         RecordVirtualKey = recordVirtualKey;
         ToggleUiModifiers = toggleUiModifiers;
         ToggleUiVirtualKey = toggleUiVirtualKey;
+        ScreenshotModifiers = screenshotModifiers;
+        ScreenshotVirtualKey = screenshotVirtualKey;
         _applyCallback = applyCallback;
 
         RefreshButtons();
-    }
-
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        Win32Interop.ExcludeFromCapture(hwnd);
     }
 
     private void RefreshButtons()
@@ -76,6 +76,19 @@ public partial class HotkeySettingsWindow : Wpf.Window
             ToggleUiHotkeyBtn.Content = HotkeyFormatter.Format(ToggleUiModifiers, ToggleUiVirtualKey);
             ToggleUiHotkeyBtn.Foreground = new Media.SolidColorBrush(Media.Color.FromRgb(226, 232, 240));
             ToggleUiHotkeyBtn.BorderBrush = new Media.SolidColorBrush(Media.Color.FromRgb(51, 65, 85));
+        }
+
+        if (_capturing == CaptureTarget.Screenshot)
+        {
+            ScreenshotHotkeyBtn.Content = "请按新快捷键...";
+            ScreenshotHotkeyBtn.Foreground = new Media.SolidColorBrush(Media.Color.FromRgb(250, 204, 21));
+            ScreenshotHotkeyBtn.BorderBrush = new Media.SolidColorBrush(Media.Color.FromRgb(234, 179, 8));
+        }
+        else
+        {
+            ScreenshotHotkeyBtn.Content = HotkeyFormatter.Format(ScreenshotModifiers, ScreenshotVirtualKey);
+            ScreenshotHotkeyBtn.Foreground = new Media.SolidColorBrush(Media.Color.FromRgb(226, 232, 240));
+            ScreenshotHotkeyBtn.BorderBrush = new Media.SolidColorBrush(Media.Color.FromRgb(51, 65, 85));
         }
     }
 
@@ -120,6 +133,22 @@ public partial class HotkeySettingsWindow : Wpf.Window
             Activate();
             Focus();
             SetHint("请按下「显示/隐藏悬浮条」的新快捷键（Esc 取消）", isError: false);
+        }
+        else
+        {
+            SetHint("点击右侧按钮后按下新组合键（支持 F1–F12 单键）", isError: false);
+        }
+    }
+
+    private void ScreenshotHotkeyBtn_Click(object sender, Wpf.RoutedEventArgs e)
+    {
+        _capturing = _capturing == CaptureTarget.Screenshot ? CaptureTarget.None : CaptureTarget.Screenshot;
+        RefreshButtons();
+        if (_capturing == CaptureTarget.Screenshot)
+        {
+            Activate();
+            Focus();
+            SetHint("请按下「屏幕截图」的新快捷键（Esc 取消）", isError: false);
         }
         else
         {
@@ -176,9 +205,10 @@ public partial class HotkeySettingsWindow : Wpf.Window
 
         if (_capturing == CaptureTarget.Record)
         {
-            if (modifiers == ToggleUiModifiers && vk == ToggleUiVirtualKey)
+            if ((modifiers == ToggleUiModifiers && vk == ToggleUiVirtualKey) ||
+                (modifiers == ScreenshotModifiers && vk == ScreenshotVirtualKey))
             {
-                SetHint("不能与「显示/隐藏悬浮条」快捷键相同", isError: true);
+                SetHint("不能与其他快捷键相同", isError: true);
                 return;
             }
             RecordModifiers = modifiers;
@@ -186,13 +216,25 @@ public partial class HotkeySettingsWindow : Wpf.Window
         }
         else if (_capturing == CaptureTarget.ToggleUi)
         {
-            if (modifiers == RecordModifiers && vk == RecordVirtualKey)
+            if ((modifiers == RecordModifiers && vk == RecordVirtualKey) ||
+                (modifiers == ScreenshotModifiers && vk == ScreenshotVirtualKey))
             {
-                SetHint("不能与「开始/停止录制」快捷键相同", isError: true);
+                SetHint("不能与其他快捷键相同", isError: true);
                 return;
             }
             ToggleUiModifiers = modifiers;
             ToggleUiVirtualKey = vk;
+        }
+        else if (_capturing == CaptureTarget.Screenshot)
+        {
+            if ((modifiers == RecordModifiers && vk == RecordVirtualKey) ||
+                (modifiers == ToggleUiModifiers && vk == ToggleUiVirtualKey))
+            {
+                SetHint("不能与其他快捷键相同", isError: true);
+                return;
+            }
+            ScreenshotModifiers = modifiers;
+            ScreenshotVirtualKey = vk;
         }
 
         _capturing = CaptureTarget.None;
@@ -203,23 +245,33 @@ public partial class HotkeySettingsWindow : Wpf.Window
     private void ResetButton_Click(object sender, Wpf.RoutedEventArgs e)
     {
         _capturing = CaptureTarget.None;
-        RecordModifiers = Win32Interop.MOD_CONTROL | Win32Interop.MOD_ALT;
-        RecordVirtualKey = 0x52; // R
+        RecordModifiers = Win32Interop.MOD_SHIFT;
+        RecordVirtualKey = 0x70; // F1
         ToggleUiModifiers = Win32Interop.MOD_CONTROL | Win32Interop.MOD_ALT;
         ToggleUiVirtualKey = 0x48; // H
+        ScreenshotModifiers = 0;
+        ScreenshotVirtualKey = 0x70; // F1
         RefreshButtons();
         SetHint("已还原默认快捷键，点击「保存」生效", isError: false);
     }
 
     private void SaveButton_Click(object sender, Wpf.RoutedEventArgs e)
     {
-        if (RecordModifiers == ToggleUiModifiers && RecordVirtualKey == ToggleUiVirtualKey)
+        if ((RecordModifiers == ToggleUiModifiers && RecordVirtualKey == ToggleUiVirtualKey) ||
+            (RecordModifiers == ScreenshotModifiers && RecordVirtualKey == ScreenshotVirtualKey) ||
+            (ToggleUiModifiers == ScreenshotModifiers && ToggleUiVirtualKey == ScreenshotVirtualKey))
         {
-            SetHint("两个快捷键不能相同", isError: true);
+            SetHint("三个快捷键不能相同", isError: true);
             return;
         }
 
-        string? error = _applyCallback(RecordModifiers, RecordVirtualKey, ToggleUiModifiers, ToggleUiVirtualKey);
+        string? error = _applyCallback(
+            RecordModifiers,
+            RecordVirtualKey,
+            ToggleUiModifiers,
+            ToggleUiVirtualKey,
+            ScreenshotModifiers,
+            ScreenshotVirtualKey);
         if (!string.IsNullOrWhiteSpace(error))
         {
             SetHint(error, isError: true);

@@ -1,0 +1,743 @@
+<Window x:Class="MiniRec.Views.ScreenshotOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MiniRec.Views"
+        Title="MiniRec Screenshot"
+        WindowStyle="None"
+        AllowsTransparency="False"
+        Background="#000000"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Cursor="Cross"
+        Loaded="Window_Loaded"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewMouseWheel="Window_PreviewMouseWheel"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown"
+        MouseMove="Window_MouseMove"
+        MouseLeftButtonUp="Window_MouseLeftButtonUp"
+        MouseRightButtonDown="Window_MouseRightButtonDown">
+
+    <Window.Resources>
+        <Style x:Key="ShotToolbarIconBtnStyle" TargetType="Button">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#334155" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#CBD5E1" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Bd" Property="Background" Value="#E6F8EE" />
+                                <Setter Property="Foreground" Value="#07C160" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.32" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ShotToolbarPillBtnStyle" TargetType="Button">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Background" Value="#E2E8F0" />
+            <Setter Property="Foreground" Value="#1E293B" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryConfirmBtnStyle" TargetType="Button">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="#07C160" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#06AD56" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#05984B" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SubBarModeBtnStyle" TargetType="Button">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#475569" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Bd" Property="Background" Value="#E6F8EE" />
+                                <Setter Property="Foreground" Value="#07C160" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SizeDotBtnStyle" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="1.5"
+                                CornerRadius="12">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Bd" Property="Background" Value="#E6F8EE" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#07C160" />
+                                <Setter Property="Foreground" Value="#07C160" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ShotResizeHandleStyle" TargetType="Rectangle">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Fill" Value="#07C160" />
+            <Setter Property="Stroke" Value="#FFFFFF" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <!-- 冻结的全虚拟桌面静态底图 -->
+        <Image x:Name="FrozenBgImage"
+               Stretch="Fill"
+               RenderOptions.BitmapScalingMode="NearestNeighbor"
+               IsHitTestVisible="False" />
+
+        <Canvas x:Name="RootCanvas" Background="Transparent">
+            <!-- 半透明暗色遮罩，选区或吸附控件通过 CombinedGeometry 镂空 -->
+            <Path x:Name="DimOverlayPath" Fill="#88000000" IsHitTestVisible="False" />
+
+            <!-- 矢量标注实时渲染图层（严格裁切在选区内） -->
+            <local:AnnotationLayerElement x:Name="AnnotationLayer" />
+
+            <!-- Phase 3 原图沉浸式自由划词图层 -->
+            <local:OcrSelectionLayer x:Name="OcrSelectionLayer" Visibility="Collapsed" />
+
+            <!-- 选区边框（微信绿 2px） -->
+            <Border x:Name="SelectionBorder"
+                    Visibility="Collapsed"
+                    BorderBrush="#07C160"
+                    BorderThickness="2"
+                    Background="Transparent"
+                    IsHitTestVisible="False" />
+
+            <!-- 8 个缩放手柄 -->
+            <Rectangle x:Name="HandleTL" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleT"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleTR" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleR"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleBR" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleB"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleBL" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Rectangle x:Name="HandleL"  Style="{StaticResource ShotResizeHandleStyle}" />
+
+            <!-- 选区物理像素尺寸标签 -->
+            <Border x:Name="SizeBadge"
+                    Visibility="Collapsed"
+                    Background="#CC0F172A"
+                    CornerRadius="4"
+                    Padding="7,2"
+                    IsHitTestVisible="False">
+                <TextBlock x:Name="SizeBadgeText"
+                           Foreground="#F8FAFC"
+                           FontFamily="Consolas, Segoe UI"
+                           FontSize="12"
+                           FontWeight="SemiBold" />
+            </Border>
+
+            <!-- 原位透明文字标注输入框 -->
+            <Border x:Name="InlineTextBoxContainer"
+                    Visibility="Collapsed"
+                    BorderBrush="#07C160"
+                    BorderThickness="1"
+                    Background="#22000000"
+                    CornerRadius="3"
+                    Padding="2,1">
+                <TextBox x:Name="InlineTextBox"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         AcceptsReturn="True"
+                         TextWrapping="NoWrap"
+                         MinWidth="60"
+                         MinHeight="24"
+                         FontFamily="Microsoft YaHei UI, Segoe UI"
+                         FontWeight="SemiBold"
+                         CaretBrush="#07C160"
+                         PreviewKeyDown="InlineTextBox_PreviewKeyDown"
+                         LostKeyboardFocus="InlineTextBox_LostKeyboardFocus" />
+            </Border>
+
+            <!-- 放大镜 + 取色浮窗 -->
+            <Border x:Name="MagnifierPanel"
+                    Visibility="Collapsed"
+                    Background="#EE0F172A"
+                    BorderBrush="#475569"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="4"
+                    IsHitTestVisible="False">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="10"
+                                      ShadowDepth="2"
+                                      Opacity="0.4"
+                                      Color="#000000" />
+                </Border.Effect>
+                <StackPanel Width="135">
+                    <Grid Width="135" Height="135" ClipToBounds="True">
+                        <Image x:Name="MagnifierImage"
+                               Width="135"
+                               Height="135"
+                               Stretch="Fill"
+                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        <!-- 十字准星（中心 9x9 对应物理中心像素） -->
+                        <Border Height="1" Background="#8807C160" VerticalAlignment="Center" />
+                        <Border Width="1" Background="#8807C160" HorizontalAlignment="Center" />
+                        <Border Width="9"
+                                Height="9"
+                                BorderBrush="#07C160"
+                                BorderThickness="1.5"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel Margin="3,5,3,2">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="ColorSwatch"
+                                    Width="13"
+                                    Height="13"
+                                    CornerRadius="3"
+                                    BorderBrush="#94A3B8"
+                                    BorderThickness="1"
+                                    Margin="0,0,6,0" />
+                            <TextBlock x:Name="ColorValueText"
+                                       Text="#000000"
+                                       Foreground="#F8FAFC"
+                                       FontFamily="Consolas, Segoe UI"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="CoordText"
+                                   Text="0, 0"
+                                   Foreground="#94A3B8"
+                                   FontFamily="Consolas, Segoe UI"
+                                   FontSize="10.5"
+                                   Margin="0,2,0,0" />
+                        <TextBlock Text="C 复制色值 · Shift 切换"
+                                   Foreground="#64748B"
+                                   FontSize="10"
+                                   Margin="0,1,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 微信风格主标注工具条（纯矢量图标） -->
+            <Border x:Name="ActionToolbar"
+                    Visibility="Collapsed"
+                    Background="#F8FAFC"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="6,4"
+                    Cursor="Arrow">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="10"
+                                      ShadowDepth="2"
+                                      Opacity="0.35"
+                                      Color="#000000" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 矩形 (1) -->
+                    <Button x:Name="RectToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="矩形 (1 · 按住 Shift 正方形)"
+                            Click="ToolButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6"
+                              Data="M 2,3 H 14 V 13 H 2 Z" />
+                    </Button>
+
+                    <!-- 椭圆 (2) -->
+                    <Button x:Name="EllipseToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="椭圆 (2 · 按住 Shift 正圆)"
+                            Click="ToolButton_Click">
+                        <Ellipse Width="14" Height="11"
+                                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                 StrokeThickness="1.6" />
+                    </Button>
+
+                    <!-- 箭头 (3) -->
+                    <Button x:Name="ArrowToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="箭头 (3)"
+                            Click="ToolButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.7"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 2,13 L 13,2 M 7,2 H 13 V 8" />
+                    </Button>
+
+                    <!-- 画笔 (4) -->
+                    <Button x:Name="PenToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="画笔 (4)"
+                            Click="ToolButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 11.5,2.5 L 13.5,4.5 L 5.5,12.5 L 2.5,13.5 L 3.5,10.5 Z M 9.5,4.5 L 11.5,6.5" />
+                    </Button>
+
+                    <!-- 荧光笔 (5) -->
+                    <Button x:Name="HighlighterToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="荧光笔 (5 · 半透明高亮)"
+                            Click="ToolButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 9,2 L 13,6 L 6.5,12.5 L 2.5,12.5 L 2.5,8.5 Z M 2,14.5 H 14" />
+                    </Button>
+
+                    <!-- 序号 (6) -->
+                    <Button x:Name="NumberToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="序号标注 ①②③ (6)"
+                            Click="ToolButton_Click">
+                        <Grid Width="15" Height="15">
+                            <Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                     StrokeThickness="1.5" />
+                            <TextBlock Text="1"
+                                       FontSize="9.5"
+                                       FontWeight="Bold"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,-0.5,0,0" />
+                        </Grid>
+                    </Button>
+
+                    <!-- 马赛克 (7) -->
+                    <Button x:Name="MosaicToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="马赛克 / 模糊打码 (7)"
+                            Click="ToolButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              Data="M2,2 H6 V6 H2 Z M10,2 H14 V6 H10 Z M6,6 H10 V10 H6 Z M2,10 H6 V14 H2 Z M10,10 H14 V14 H10 Z" />
+                    </Button>
+
+                    <!-- 文字 (8) -->
+                    <Button x:Name="TextToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="文字标注 (8)"
+                            Click="ToolButton_Click">
+                        <TextBlock Text="T"
+                                   FontFamily="Georgia, Times New Roman"
+                                   FontSize="15"
+                                   FontWeight="Bold"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+
+                    <Border Width="1" Height="18" Background="#CBD5E1" Margin="4,0" />
+
+                    <!-- 撤销 -->
+                    <Button x:Name="UndoBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            IsEnabled="False"
+                            ToolTip="撤销 (Ctrl+Z)"
+                            Click="UndoButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 4,6 H 10 C 12.5,6 14,7.6 14,10 C 14,12.2 12.2,13.5 10,13.5 H 7 M 6.5,3.5 L 3.5,6 L 6.5,8.5" />
+                    </Button>
+
+                    <!-- 重做 -->
+                    <Button x:Name="RedoBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            IsEnabled="False"
+                            ToolTip="重做 (Ctrl+Y)"
+                            Click="RedoButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 12,6 H 6 C 3.5,6 2,7.6 2,10 C 2,12.2 3.8,13.5 6,13.5 H 9 M 9.5,3.5 L 12.5,6 L 9.5,8.5" />
+                    </Button>
+
+                    <!-- 删除选中标注 -->
+                    <Button x:Name="DeleteAnnoBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            IsEnabled="False"
+                            ToolTip="删除选中标注 (Delete)"
+                            Click="DeleteAnnoButton_Click">
+                        <Path Width="14" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 3,4.5 H 13 M 6,2.5 H 10 M 4.5,4.5 V 13.5 H 11.5 V 4.5 M 7,7 V 11 M 9,7 V 11" />
+                    </Button>
+
+                    <Border Width="1" Height="18" Background="#CBD5E1" Margin="4,0" />
+
+                    <!-- 提取文字 OCR (O) -->
+                    <Button x:Name="OcrBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="提取文字 OCR (O)"
+                            Click="OcrButton_Click">
+                        <TextBlock Text="文"
+                                   FontFamily="Microsoft YaHei UI, Segoe UI"
+                                   FontSize="13.5"
+                                   FontWeight="Bold"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+
+                    <!-- 贴图 Pin -->
+                    <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="钉在桌面上置顶贴图"
+                            Click="PinButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 9.5,2 L 14,6.5 L 11,8 L 10,11 L 5,6 L 8,5 Z M 7.5,8.5 L 2.5,13.5" />
+                    </Button>
+
+                    <!-- 转入区域隐身录屏（统一红色录屏图标） -->
+                    <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="以此选区立即开始隐身录屏"
+                            Click="RecordNowButton_Click">
+                        <Grid Width="14" Height="14">
+                            <Ellipse Stroke="#EF4444" StrokeThickness="1.5" />
+                            <Ellipse Width="7" Height="7" Fill="#EF4444" />
+                        </Grid>
+                    </Button>
+
+                    <!-- 保存 PNG -->
+                    <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="保存为 PNG 文件 (Ctrl+S)"
+                            Click="SaveButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 8,2.5 V 10.5 M 5,7.5 L 8,10.5 L 11,7.5 M 2.5,11.5 V 13.5 H 13.5 V 11.5" />
+                    </Button>
+
+                    <Border Width="1" Height="18" Background="#CBD5E1" Margin="4,0" />
+
+                    <!-- 重新框选 -->
+                    <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="重新选择区域"
+                            Click="ReselectButton_Click">
+                        <Path Width="15" Height="15" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 13,8 A 5,5 0 1 1 11.5,4.5 M 12.5,2 V 5 H 9.5" />
+                    </Button>
+
+                    <!-- 取消退出 -->
+                    <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            Foreground="#EF4444"
+                            ToolTip="取消退出 (Esc)"
+                            Click="CancelButton_Click">
+                        <Path Width="13" Height="13" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              Data="M 3,3 L 12,12 M 12,3 L 3,12" />
+                    </Button>
+
+                    <!-- 微信绿主完成按钮 -->
+                    <Button Style="{StaticResource PrimaryConfirmBtnStyle}"
+                            ToolTip="复制到剪贴板并完成 (Enter / 双击选区)"
+                            Click="ConfirmButton_Click">
+                        <Path Width="14" Height="14" Stretch="Uniform"
+                              Stroke="#FFFFFF"
+                              StrokeThickness="2.1"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 2.5,8 L 6.5,12 L 13.5,4" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- 二级样式浮条（粗细/字号/强度 + 色板或马赛克模式） -->
+            <Border x:Name="StyleSubBar"
+                    Visibility="Collapsed"
+                    Background="#F8FAFC"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="7,4"
+                    Cursor="Arrow">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="8"
+                                      ShadowDepth="2"
+                                      Opacity="0.3"
+                                      Color="#000000" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 3 档大小圆点 -->
+                    <Button x:Name="SizeSmallBtn"
+                            Style="{StaticResource SizeDotBtnStyle}"
+                            ToolTip="细 / 小号"
+                            Click="SizeSmallBtn_Click">
+                        <Ellipse Width="5" Height="5" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+                    <Button x:Name="SizeMediumBtn"
+                            Style="{StaticResource SizeDotBtnStyle}"
+                            ToolTip="中"
+                            Click="SizeMediumBtn_Click">
+                        <Ellipse Width="9" Height="9" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+                    <Button x:Name="SizeLargeBtn"
+                            Style="{StaticResource SizeDotBtnStyle}"
+                            ToolTip="粗 / 大号"
+                            Click="SizeLargeBtn_Click">
+                        <Ellipse Width="13" Height="13" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+
+                    <Border Width="1" Height="16" Background="#CBD5E1" Margin="6,0" />
+
+                    <!-- 8 色精选色板容器（由后台动态绑定选中高亮） -->
+                    <StackPanel x:Name="ColorPalettePanel"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center" />
+
+                    <!-- 马赛克双模式切换（仅马赛克工具时显示） -->
+                    <StackPanel x:Name="MosaicModePanel"
+                                Visibility="Collapsed"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Button x:Name="MosaicPixelBtn"
+                                Style="{StaticResource SubBarModeBtnStyle}"
+                                Content="像素块"
+                                Click="MosaicPixelBtn_Click"
+                                Margin="0,0,2,0" />
+                        <Button x:Name="MosaicBlurBtn"
+                                Style="{StaticResource SubBarModeBtnStyle}"
+                                Content="高斯模糊"
+                                Click="MosaicBlurBtn_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 划词松手后的极简复制气泡 -->
+            <Border x:Name="OcrSelectionBubble"
+                    Visibility="Collapsed"
+                    Background="#F8FAFC"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="7"
+                    Padding="4,3"
+                    Cursor="Arrow">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="8"
+                                      ShadowDepth="2"
+                                      Opacity="0.32"
+                                      Color="#000000" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Height="24"
+                            Padding="9,0"
+                            Background="#07C160"
+                            BorderThickness="0"
+                            Foreground="#FFFFFF"
+                            FontSize="11.5"
+                            FontWeight="SemiBold"
+                            Cursor="Hand"
+                            Focusable="False"
+                            Content="复制"
+                            ToolTip="复制所选文字 (Ctrl+C)"
+                            Click="OcrBubbleCopyBtn_Click"
+                            Margin="0,0,4,0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button Style="{StaticResource SubBarModeBtnStyle}"
+                            Height="24"
+                            Content="去换行复制"
+                            ToolTip="合并换行后复制所选文字"
+                            Click="OcrBubbleJoinCopyBtn_Click" />
+                </StackPanel>
+            </Border>
+
+            <!-- OCR 模式轻量单行操作栏（彻底替代狭小旁侧下拉框） -->
+            <Border x:Name="OcrActionBar"
+                    Visibility="Collapsed"
+                    Background="#F8FAFC"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="8,4"
+                    Cursor="Arrow">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="8"
+                                      ShadowDepth="2"
+                                      Opacity="0.3"
+                                      Color="#000000" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="OcrBarStatusText"
+                               Text="拖动原图划词"
+                               Foreground="#475569"
+                               FontSize="11.5"
+                               VerticalAlignment="Center"
+                               Margin="2,0,8,0" />
+                    <Border Width="1" Height="14" Background="#CBD5E1" Margin="0,0,6,0" />
+                    <Button x:Name="OcrSelectAllBtn"
+                            Style="{StaticResource SubBarModeBtnStyle}"
+                            Content="全选 (Ctrl+A)"
+                            Click="OcrSelectAllBtn_Click"
+                            Margin="0,0,2,0" />
+                    <Button x:Name="OcrCopyAllBtn"
+                            Style="{StaticResource SubBarModeBtnStyle}"
+                            Content="复制全部"
+                            Click="OcrCopyAllBtn_Click"
+                            Margin="0,0,2,0" />
+                    <Button x:Name="OcrOpenEditorBtn"
+                            Style="{StaticResource SubBarModeBtnStyle}"
+                            Content="大窗编辑"
+                            ToolTip="在宽敞独立窗口中编辑全部文字"
+                            Click="OcrOpenEditorBtn_Click"
+                            Margin="0,0,4,0" />
+                    <Button Style="{StaticResource SubBarModeBtnStyle}"
+                            Foreground="#EF4444"
+                            Content="退出"
+                            Click="CloseOcrBtn_Click" />
+                </StackPanel>
+            </Border>
+
+            <!-- 顶部提示胶囊（兼作色值复制反馈） -->
+            <Border x:Name="HintPill"
+                    Background="#DD0F172A"
+                    BorderBrush="#475569"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="14,6"
+                    IsHitTestVisible="False">
+                <TextBlock x:Name="HintPillText"
+                           Text="悬停自动吸附控件 · 滚轮切换层级 · 拖动框选 · C 复制色值 · Esc 取消"
+                           Foreground="#E2E8F0"
+                           FontSize="12.5" />
+            </Border>
+        </Canvas>
+    </Grid>
+</Window>

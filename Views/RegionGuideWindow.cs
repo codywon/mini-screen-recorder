@@ -5,7 +5,7 @@ using MiniRec.Services;
 using Wpf = System.Windows;
 using Media = System.Windows.Media;
 
-namespace MiniRec;
+namespace MiniRec.Views;
 
 internal sealed class RegionGuideWindow : Wpf.Window
 {
