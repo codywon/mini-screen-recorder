@@ -34,8 +34,6 @@ internal static class Win32Interop
 
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     private const int DWMWA_CLOAKED = 14;
-    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-    private const int DWMWCP_ROUND = 2;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
@@ -113,9 +111,6 @@ internal static class Win32Interop
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool DestroyIcon(IntPtr hIcon);
-
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
@@ -265,23 +260,6 @@ internal static class Win32Interop
             return false;
         }
         return SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
-    }
-
-    public static void TryEnableRoundedCorners(IntPtr hwnd)
-    {
-        if (hwnd == IntPtr.Zero)
-        {
-            return;
-        }
-        try
-        {
-            int preference = DWMWCP_ROUND;
-            _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
-        }
-        catch
-        {
-            // Ignore on older Windows versions that do not support DWMWA_WINDOW_CORNER_PREFERENCE.
-        }
     }
 
     public static List<(int X, int Y, int Width, int Height)> EnumerateVisibleWindowRects(int excludeProcessId)

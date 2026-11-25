@@ -91,8 +91,8 @@ public partial class MainWindow : Wpf.Window
     {
         Wpf.Rect area = Wpf.SystemParameters.WorkArea;
         double w = ActualWidth > 0 ? ActualWidth : 320;
-        Left = area.Right - w - 16;
-        Top = area.Top + 18;
+        Left = area.Right - w - 10;
+        Top = area.Top + 12;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -100,7 +100,6 @@ public partial class MainWindow : Wpf.Window
         base.OnSourceInitialized(e);
 
         _hwnd = new WindowInteropHelper(this).Handle;
-        Win32Interop.TryEnableRoundedCorners(_hwnd);
 
         bool excluded = Win32Interop.ExcludeFromCapture(_hwnd);
         if (!excluded)

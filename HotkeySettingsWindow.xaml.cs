@@ -47,7 +47,6 @@ public partial class HotkeySettingsWindow : Wpf.Window
     {
         base.OnSourceInitialized(e);
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        Win32Interop.TryEnableRoundedCorners(hwnd);
         Win32Interop.ExcludeFromCapture(hwnd);
     }
 
