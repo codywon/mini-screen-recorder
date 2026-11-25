@@ -1,0 +1,49 @@
+# Build & publish outputs
+[Bb]in/
+[Oo]bj/
+dist/
+publish/
+out/
+artifacts/
+
+# Visual Studio / IDE / Editor
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.csproj.user
+*.DotSettings.user
+
+# .NET / NuGet / Test artifacts
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Temp, logs & intermediate files
+*.pdb
+*.cache
+*.tmp
+*.temp
+*.log
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Local recording outputs (avoid accidental commits)
+*.mp4
