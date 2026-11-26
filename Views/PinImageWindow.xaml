@@ -12,6 +12,9 @@
         Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
+        MouseMove="Window_MouseMove"
+        MouseLeftButtonUp="Window_MouseLeftButtonUp"
+        LostMouseCapture="Window_LostMouseCapture"
         MouseWheel="Window_MouseWheel">
 
     <Border x:Name="FrameBorder"

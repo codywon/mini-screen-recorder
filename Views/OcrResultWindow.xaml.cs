@@ -87,8 +87,9 @@ public partial class OcrResultWindow : Wpf.Window
     {
         if (!string.IsNullOrWhiteSpace(ResultTextBox.Text))
         {
-            Wpf.Clipboard.SetText(ResultTextBox.Text);
-            CopiedHintText.Text = "✓ 已复制";
+            CopiedHintText.Text = ClipboardHelper.TrySetText(ResultTextBox.Text)
+                ? "✓ 已复制"
+                : "剪贴板被占用，请重试";
         }
     }
 

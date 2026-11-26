@@ -711,6 +711,10 @@ public partial class MainWindow : Wpf.Window
                 var ocrWin = new OcrResultWindow(overlay.OcrResult, anchorDip);
                 ocrWin.Show();
                 break;
+
+            case ScreenshotOverlayOutcome.ColorCopied when !string.IsNullOrWhiteSpace(overlay.CopiedColorText):
+                ShowBanner($"✓ 已复制色值 {overlay.CopiedColorText}", isError: false);
+                break;
         }
     }
 

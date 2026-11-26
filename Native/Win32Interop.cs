@@ -203,6 +203,9 @@ internal static class Win32Interop
     public static extern bool GetCursorPos(out POINT lpPoint);
 
     [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetCursorPos(int X, int Y);
+
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowPos(
         IntPtr hWnd,
         IntPtr hWndInsertAfter,

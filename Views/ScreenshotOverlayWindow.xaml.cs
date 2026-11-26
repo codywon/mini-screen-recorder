@@ -21,7 +21,8 @@ internal enum ScreenshotOverlayOutcome
     Saved,
     Pinned,
     StartRecording,
-    OpenOcrWindow
+    OpenOcrWindow,
+    ColorCopied
 }
 
 public partial class ScreenshotOverlayWindow : Wpf.Window
@@ -37,7 +38,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private const int DragThresholdPixels = 5;
     private const double HandleSizeDip = 8.0;
     private const int MagnifierPatchSize = 15;
-    private const string DefaultHoverHint = "悬停自动吸附控件 · 滚轮切换层级 · 拖动框选 · C 复制色值 · Esc 取消";
+    private const string DefaultHoverHint = "悬停自动吸附 · 拖动框选 · ↑↓←→ 微调 · C 复制色值并退出 · Esc 取消";
 
     private static readonly Media.Color[] PaletteColors =
     [
@@ -60,6 +61,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(1.8) };
     private readonly AnnotationEngine _annotationEngine = new();
     private readonly List<Controls.Border> _colorSwatchRings = [];
+    private readonly Media.SolidColorBrush _colorSwatchBrush = new(Media.Colors.Black);
 
     private OverlayPhase _phase = OverlayPhase.Hovering;
     private bool _hasSource;
@@ -77,6 +79,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private RegionHitZone _activeHitZone = RegionHitZone.None;
     private bool _isEditingDrag;
     private bool _useRgbColorFormat;
+    private bool _isColorPickerActive;
 
     // Phase 2 标注工作台状态
     private AnnotationToolType _activeTool = AnnotationToolType.None;
@@ -106,6 +109,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     internal Imaging.BitmapSource? ResultBitmap { get; private set; }
     internal string? SavedFilePath { get; private set; }
     internal OcrDocumentResult? OcrResult { get; private set; }
+    internal string? CopiedColorText { get; private set; }
 
     internal ScreenshotOverlayWindow(
         ScreenSnapshot snapshot,
@@ -128,6 +132,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             Media.PixelFormats.Bgr32,
             null);
         MagnifierImage.Source = _magnifierBitmap;
+        ColorSwatch.Background = _colorSwatchBrush;
 
         AnnotationLayer.Engine = _annotationEngine;
         AnnotationLayer.MosaicProvider = (mode, strength) =>
@@ -287,6 +292,11 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         if (key == Input.Key.Escape)
         {
             e.Handled = true;
+            if (_isColorPickerActive)
+            {
+                SetColorPickerActive(false);
+                return;
+            }
             if (_isOcrActive)
             {
                 ClearOcrUi();
@@ -303,11 +313,19 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         }
 
         if ((key == Input.Key.LeftShift || key == Input.Key.RightShift) &&
-            _phase == OverlayPhase.Hovering &&
+            !e.IsRepeat &&
+            !_isDrawingAnnotation &&
+            (_phase == OverlayPhase.Hovering ||
+             _phase == OverlayPhase.Drawing ||
+             _isColorPickerActive ||
+             (_phase == OverlayPhase.Editing && _isEditingDrag && _activeHitZone != RegionHitZone.Move)) &&
             (Input.Keyboard.Modifiers & ~Input.ModifierKeys.Shift) == 0)
         {
             _useRgbColorFormat = !_useRgbColorFormat;
-            UpdateMagnifier(_lastCursorPhys);
+            if (MagnifierPanel.Visibility == Wpf.Visibility.Visible || _phase == OverlayPhase.Hovering || _isColorPickerActive)
+            {
+                UpdateMagnifier(_lastCursorPhys);
+            }
             return;
         }
 
@@ -317,8 +335,31 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         if (key == Input.Key.C && !ctrl)
         {
             e.Handled = true;
-            CopyColorUnderCursor();
+            CopyColorUnderCursor(closeAfterCopy: _phase == OverlayPhase.Hovering);
             return;
+        }
+
+        if (_phase == OverlayPhase.Hovering || (_phase == OverlayPhase.Editing && _isColorPickerActive))
+        {
+            int nudgeStep = (ctrl || shift) ? 10 : 1;
+            (int ndx, int ndy) = key switch
+            {
+                Input.Key.Left => (-nudgeStep, 0),
+                Input.Key.Right => (nudgeStep, 0),
+                Input.Key.Up => (0, -nudgeStep),
+                Input.Key.Down => (0, nudgeStep),
+                Input.Key.A when !ctrl => (-nudgeStep, 0),
+                Input.Key.D when !ctrl => (nudgeStep, 0),
+                Input.Key.W when !ctrl => (0, -nudgeStep),
+                Input.Key.S when !ctrl => (0, nudgeStep),
+                _ => (0, 0)
+            };
+            if (ndx != 0 || ndy != 0)
+            {
+                e.Handled = true;
+                NudgeCursor(ndx, ndy);
+                return;
+            }
         }
 
         if (_phase != OverlayPhase.Editing) return;
@@ -339,8 +380,9 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             }
             else if (_ocrResult is { Success: true } && !string.IsNullOrWhiteSpace(_ocrResult.FullText))
             {
-                Wpf.Clipboard.SetText(_ocrResult.FullText);
-                FlashToast("✓ 已复制全部识别文字");
+                FlashToast(ClipboardHelper.TrySetText(_ocrResult.FullText)
+                    ? "✓ 已复制全部识别文字"
+                    : "剪贴板被其他程序占用，请重试");
             }
             return;
         }
@@ -389,6 +431,13 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
                 _ => AnnotationToolType.None
             };
             ToggleActiveTool(picked);
+            return;
+        }
+
+        if (!ctrl && key == Input.Key.I)
+        {
+            e.Handled = true;
+            SetColorPickerActive(!_isColorPickerActive);
             return;
         }
 
@@ -483,6 +532,13 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
         if (_phase == OverlayPhase.Editing)
         {
+            if (_isColorPickerActive)
+            {
+                CopyColorUnderCursor(closeAfterCopy: false);
+                e.Handled = true;
+                return;
+            }
+
             RegionHitZone hit = HitTestEditRect(pt);
             if (hit == RegionHitZone.None)
             {
@@ -626,6 +682,21 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
         if (_phase == OverlayPhase.Editing)
         {
+            if (_isColorPickerActive)
+            {
+                if (IsFromUiChrome(e.OriginalSource as Wpf.DependencyObject))
+                {
+                    Cursor = Input.Cursors.Arrow;
+                    MagnifierPanel.Visibility = Wpf.Visibility.Collapsed;
+                }
+                else
+                {
+                    Cursor = Input.Cursors.Cross;
+                    UpdateMagnifier(pt);
+                }
+                return;
+            }
+
             if (_isDrawingAnnotation && _previewAnnotation is not null)
             {
                 UpdatePreviewAnnotation(new Wpf.Point(pt.X, pt.Y));
@@ -916,6 +987,12 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
                 return;
             }
 
+            if (_isColorPickerActive)
+            {
+                SetColorPickerActive(false);
+                return;
+            }
+
             if (_isOcrActive)
             {
                 ClearOcrUi();
@@ -1054,6 +1131,10 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         {
             CommitInlineText();
         }
+        if (_isColorPickerActive)
+        {
+            SetColorPickerActive(false);
+        }
         if (_isOcrActive)
         {
             ClearOcrUi();
@@ -1062,6 +1143,47 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         _activeTool = _activeTool == tool ? AnnotationToolType.None : tool;
         RefreshToolAndStyleUi();
         PositionStyleSubBar();
+    }
+
+    private void ColorPickerButton_Click(object sender, Wpf.RoutedEventArgs e)
+    {
+        SetColorPickerActive(!_isColorPickerActive);
+    }
+
+    private void SetColorPickerActive(bool active)
+    {
+        if (active)
+        {
+            if (_phase != OverlayPhase.Editing) return;
+
+            if (_isEditingInlineText) CommitInlineText();
+            if (_isOcrActive) ClearOcrUi();
+
+            _activeTool = AnnotationToolType.None;
+            _annotationEngine.SelectedItem = null;
+            _isColorPickerActive = true;
+            AnnotationLayer.Refresh();
+            RefreshToolAndStyleUi();
+            FlashToast("吸管取色：左键点击或按 C 复制 · ↑↓←→ 微调 · Shift 切换 · 右键/Esc 退出");
+
+            if (Win32Interop.GetCursorPos(out Win32Interop.POINT pt))
+            {
+                _lastCursorPhys = pt;
+                Cursor = Input.Cursors.Cross;
+                UpdateMagnifier(pt);
+            }
+            return;
+        }
+
+        _isColorPickerActive = false;
+        MagnifierPanel.Visibility = Wpf.Visibility.Collapsed;
+        RefreshToolAndStyleUi();
+
+        if (_phase == OverlayPhase.Editing && Win32Interop.GetCursorPos(out Win32Interop.POINT curPt))
+        {
+            _lastCursorPhys = curPt;
+            UpdateEditingHoverCursor(curPt);
+        }
     }
 
     private void UndoButton_Click(object sender, Wpf.RoutedEventArgs e)
@@ -1133,6 +1255,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         NumberToolBtn.Tag = _activeTool == AnnotationToolType.NumberBadge ? "Active" : null;
         MosaicToolBtn.Tag = _activeTool == AnnotationToolType.Mosaic ? "Active" : null;
         TextToolBtn.Tag = _activeTool == AnnotationToolType.Text ? "Active" : null;
+        ColorPickerBtn.Tag = _isColorPickerActive ? "Active" : null;
 
         UndoBtn.IsEnabled = _annotationEngine.CanUndo;
         RedoBtn.IsEnabled = _annotationEngine.CanRedo;
@@ -1178,7 +1301,12 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         string selected = OcrSelectionLayer.GetSelectedText(joinLines);
         if (string.IsNullOrWhiteSpace(selected)) return;
 
-        Wpf.Clipboard.SetText(selected);
+        if (!ClipboardHelper.TrySetText(selected))
+        {
+            FlashToast("剪贴板被其他程序占用，请重试");
+            return;
+        }
+
         OcrSelectionBubble.Visibility = Wpf.Visibility.Collapsed;
         FlashToast(joinLines ? "✓ 已去换行复制所选文字" : "✓ 已复制所选文字");
     }
@@ -1187,8 +1315,9 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     {
         if (_ocrResult is { Success: true } && !string.IsNullOrWhiteSpace(_ocrResult.FullText))
         {
-            Wpf.Clipboard.SetText(_ocrResult.FullText);
-            FlashToast("✓ 已复制全部识别文字");
+            FlashToast(ClipboardHelper.TrySetText(_ocrResult.FullText)
+                ? "✓ 已复制全部识别文字"
+                : "剪贴板被其他程序占用，请重试");
         }
     }
 
@@ -1213,6 +1342,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         }
 
         if (_isEditingInlineText) CommitInlineText();
+        if (_isColorPickerActive) SetColorPickerActive(false);
         _activeTool = AnnotationToolType.None;
         RefreshToolAndStyleUi();
 
@@ -1350,7 +1480,12 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         if (_phase != OverlayPhase.Editing) return;
 
         Imaging.BitmapSource bitmap = RenderFinalSelectionBitmap();
-        Wpf.Clipboard.SetImage(bitmap);
+        if (!ClipboardHelper.TrySetImage(bitmap))
+        {
+            FlashToast("剪贴板被其他程序占用，请重试");
+            return;
+        }
+
         SelectedRegion = _editRect;
         ResultBitmap = bitmap;
         Outcome = ScreenshotOverlayOutcome.Copied;
@@ -1414,17 +1549,70 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         Close();
     }
 
-    private void CopyColorUnderCursor()
+    private string FormatColor(byte r, byte g, byte b) =>
+        _useRgbColorFormat ? $"rgb({r}, {g}, {b})" : $"#{r:X2}{g:X2}{b:X2}";
+
+    private void NudgeCursor(int dx, int dy)
     {
+        if (Win32Interop.GetCursorPos(out Win32Interop.POINT cur))
+        {
+            _lastCursorPhys = cur;
+        }
+
+        int maxX = _virtualBounds.Vx + Math.Max(0, _virtualBounds.Vw - 1);
+        int maxY = _virtualBounds.Vy + Math.Max(0, _virtualBounds.Vh - 1);
+        int nx = Math.Clamp(_lastCursorPhys.X + dx, _virtualBounds.Vx, maxX);
+        int ny = Math.Clamp(_lastCursorPhys.Y + dy, _virtualBounds.Vy, maxY);
+
+        Win32Interop.SetCursorPos(nx, ny);
+        _lastCursorPhys = new Win32Interop.POINT { X = nx, Y = ny };
+
+        if (_phase == OverlayPhase.Hovering)
+        {
+            UpdateHoverAtCursor(_lastCursorPhys, resetCandidateIndex: true);
+            UpdateMagnifier(_lastCursorPhys);
+        }
+        else if (_phase == OverlayPhase.Editing && _isColorPickerActive)
+        {
+            Cursor = Input.Cursors.Cross;
+            UpdateMagnifier(_lastCursorPhys);
+        }
+    }
+
+    private void CopyColorUnderCursor(bool closeAfterCopy)
+    {
+        if (Win32Interop.GetCursorPos(out Win32Interop.POINT curPt))
+        {
+            _lastCursorPhys = curPt;
+        }
+
         if (!_snapshot.TryGetPixel(_lastCursorPhys.X, _lastCursorPhys.Y, out byte r, out byte g, out byte b))
         {
             return;
         }
 
-        string text = _useRgbColorFormat
-            ? $"rgb({r}, {g}, {b})"
-            : $"#{r:X2}{g:X2}{b:X2}";
-        Wpf.Clipboard.SetText(text);
+        string text = FormatColor(r, g, b);
+        if (!ClipboardHelper.TrySetText(text))
+        {
+            FlashToast("剪贴板被其他程序占用，请重试");
+            return;
+        }
+
+        if (closeAfterCopy)
+        {
+            CopiedColorText = text;
+            Outcome = ScreenshotOverlayOutcome.ColorCopied;
+            if (IsLoaded && IsVisible)
+            {
+                DialogResult = true;
+            }
+            else
+            {
+                Close();
+            }
+            return;
+        }
+
         FlashToast($"✓ 已复制色值 {text}");
     }
 
@@ -1433,6 +1621,8 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         _toastTimer.Stop();
         if (_isEditingInlineText) CancelInlineText();
         ClearOcrUi();
+        _isColorPickerActive = false;
+        ColorPickerBtn.Tag = null;
         _annotationEngine.Clear();
         _activeTool = AnnotationToolType.None;
         _isDrawingAnnotation = false;
@@ -1473,6 +1663,8 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     {
         _toastTimer.Stop();
         _phase = OverlayPhase.Editing;
+        _isColorPickerActive = false;
+        ColorPickerBtn.Tag = null;
         _isEditingDrag = false;
         _activeHitZone = RegionHitZone.None;
         _hoverCandidate = null;
@@ -1534,15 +1726,18 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
         if (_snapshot.TryGetPixel(pt.X, pt.Y, out byte r, out byte g, out byte b))
         {
-            ColorSwatch.Background = new Media.SolidColorBrush(Media.Color.FromRgb(r, g, b));
-            ColorValueText.Text = _useRgbColorFormat
-                ? $"{r}, {g}, {b}"
-                : $"#{r:X2}{g:X2}{b:X2}";
+            _colorSwatchBrush.Color = Media.Color.FromRgb(r, g, b);
+            ColorValueText.Text = FormatColor(r, g, b);
         }
         CoordText.Text = $"{pt.X}, {pt.Y}";
+        MagnifierHintText.Text = _isColorPickerActive ? "左键/C 复制 · Shift 切换" : "C 复制色值 · Shift 切换";
 
+        bool needsLayout = MagnifierPanel.Visibility != Wpf.Visibility.Visible || MagnifierPanel.ActualWidth <= 0;
         MagnifierPanel.Visibility = Wpf.Visibility.Visible;
-        MagnifierPanel.UpdateLayout();
+        if (needsLayout)
+        {
+            MagnifierPanel.UpdateLayout();
+        }
 
         Wpf.Point cursorDip = PointFromScreen(new Wpf.Point(pt.X, pt.Y));
         double magW = MagnifierPanel.ActualWidth > 0 ? MagnifierPanel.ActualWidth : 145;
