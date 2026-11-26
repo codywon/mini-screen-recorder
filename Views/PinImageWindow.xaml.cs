@@ -13,10 +13,13 @@ namespace MiniRec.Views;
 
 public partial class PinImageWindow : Wpf.Window
 {
-    private const double FrameMargin = 10.0;
+    private const double FrameMargin = 12.0;
     private const double MinScale = 0.15;
     private const double MaxScale = 4.0;
     private const double ResizeGripDip = 8.0;
+
+    private static readonly Media.SolidColorBrush IdleBorderBrush = CreateFrozenBrush(0x26, 0x00, 0x00, 0x00);
+    private static readonly Media.SolidColorBrush ActiveBorderBrush = CreateFrozenBrush(0xFF, 0x07, 0xC1, 0x60);
 
     private readonly Imaging.BitmapSource _bitmap;
     private readonly CaptureRegion _initialPhysRegion;
@@ -100,6 +103,23 @@ public partial class PinImageWindow : Wpf.Window
 
         Width = _baseDipW + FrameMargin * 2 + 2;
         Height = _baseDipH + FrameMargin * 2 + 2;
+        UpdateFrameVisualState();
+    }
+
+    private static Media.SolidColorBrush CreateFrozenBrush(byte a, byte r, byte g, byte b)
+    {
+        var brush = new Media.SolidColorBrush(Media.Color.FromArgb(a, r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    private void Window_VisualStateChanged(object? sender, EventArgs e) => UpdateFrameVisualState();
+
+    private void UpdateFrameVisualState()
+    {
+        bool highlighted = IsActive || IsMouseOver || _isResizing;
+        FrameBorder.BorderBrush = highlighted ? ActiveBorderBrush : IdleBorderBrush;
+        FrameShadow.Opacity = highlighted ? 0.30 : 0.22;
     }
 
     private void BuildContextMenu()
@@ -167,6 +187,7 @@ public partial class PinImageWindow : Wpf.Window
             _resizeStartWidth = Width;
             _resizeStartHeight = Height;
             _resizeStartScale = _scale;
+            UpdateFrameVisualState();
             CaptureMouse();
             e.Handled = true;
             return;
@@ -279,6 +300,7 @@ public partial class PinImageWindow : Wpf.Window
         {
             ReleaseMouseCapture();
         }
+        UpdateFrameVisualState();
     }
 
     private Wpf.Point GetCursorDip()
