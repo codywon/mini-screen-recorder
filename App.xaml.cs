@@ -39,7 +39,17 @@ public partial class App : Wpf.Application
             return;
         }
 
-        var window = new MainWindow();
+        string? updatedTo = null;
+        for (int i = 0; i < e.Args.Length - 1; i++)
+        {
+            if (string.Equals(e.Args[i], "--updated-to", StringComparison.OrdinalIgnoreCase))
+            {
+                updatedTo = e.Args[i + 1];
+                break;
+            }
+        }
+
+        var window = new MainWindow(updatedTo);
         MainWindow = window;
 
         bool startMinimized = e.Args.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase));
@@ -432,6 +442,169 @@ public partial class App : Wpf.Application
             else
             {
                 Fail("原生 MediaFoundation 编码", mfEx?.ToString() ?? "未生成有效 MP4 文件");
+            }
+
+            // 6. 自动更新解析、校验与替换脚本自测
+            bool verParseOk =
+                UpdateService.TryParseVersion("v1.2.3", out Version v123) &&
+                UpdateService.TryParseVersion("1.2.0-beta.1", out Version v120) &&
+                UpdateService.IsNewerVersion(v123, v120) &&
+                !UpdateService.IsNewerVersion(v120, v123);
+
+            string sampleManifest = """
+            {
+              "version": "1.3.0",
+              "tag": "v1.3.0",
+              "publishedAt": "2026-11-28T10:00:00Z",
+              "assetName": "MiniRec-win-x64.exe",
+              "downloadUrl": "https://github.com/codywon/mini-screen-recorder/releases/download/v1.3.0/MiniRec-win-x64.exe",
+              "releaseUrl": "https://github.com/codywon/mini-screen-recorder/releases/tag/v1.3.0",
+              "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              "notes": "- 微信风格截图精修"
+            }
+            """;
+            UpdateReleaseInfo? manifestInfo = UpdateService.ParseManifestJson(sampleManifest);
+
+            string sampleGhApi = """
+            {
+              "tag_name": "v1.4.0",
+              "draft": false,
+              "prerelease": false,
+              "html_url": "https://github.com/codywon/mini-screen-recorder/releases/tag/v1.4.0",
+              "body": "API fallback release notes",
+              "assets": [
+                { "name": "MiniRec-win-x64.exe", "browser_download_url": "https://example.com/MiniRec-win-x64.exe" },
+                { "name": "SHA256SUMS.txt", "browser_download_url": "https://example.com/SHA256SUMS.txt" }
+              ]
+            }
+            """;
+            UpdateReleaseInfo? apiInfo = UpdateService.ParseGitHubReleaseJson(sampleGhApi);
+            string? parsedSum = UpdateService.ExtractSha256FromSums(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  MiniRec-win-x64.exe\n",
+                "MiniRec-win-x64.exe");
+
+            string fakeExePath = Path.Combine(tempRoot, "fake-update.exe");
+            byte[] fakeExeBytes = new byte[40 * 1024];
+            fakeExeBytes[0] = (byte)'M';
+            fakeExeBytes[1] = (byte)'Z';
+            File.WriteAllBytes(fakeExePath, fakeExeBytes);
+            bool peOk = UpdateService.IsValidWindowsExecutable(fakeExePath);
+            string sha = UpdateService.ComputeFileSha256(fakeExePath);
+            string updaterScript = UpdateService.BuildUpdaterScript(
+                12345,
+                Path.Combine(tempRoot, "MiniRec.exe"),
+                fakeExePath,
+                "1.0.0",
+                "1.3.0",
+                Path.Combine(tempRoot, "apply.ps1"));
+
+            if (verParseOk &&
+                manifestInfo is { Version: { Major: 1, Minor: 3, Build: 0 }, Sha256.Length: 64 } &&
+                apiInfo is { Version: { Major: 1, Minor: 4, Build: 0 }, Sha256SumsUrl: not null } &&
+                parsedSum == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" &&
+                peOk && sha.Length == 64 &&
+                updaterScript.Contains("--updated-to", StringComparison.Ordinal))
+            {
+                Pass("自动更新解析与校验", $"manifest={manifestInfo.Tag}, api={apiInfo.Tag}, sha256=OK");
+            }
+            else
+            {
+                Fail("自动更新解析与校验", "版本号/清单/API/SHA256或脚本生成异常");
+            }
+
+            // 7. Direct2D 真彩色 Emoji 贴纸渲染自测
+            Imaging.BitmapSource? emojiBmp = ColorEmojiRenderer.RenderEmoji("😀", 96);
+            int coloredEmojiPixels = 0;
+            if (emojiBmp is not null)
+            {
+                byte[] ePixels = new byte[96 * 96 * 4];
+                emojiBmp.CopyPixels(ePixels, 96 * 4, 0);
+                for (int i = 0; i < ePixels.Length; i += 4)
+                {
+                    byte eb = ePixels[i];
+                    byte eg = ePixels[i + 1];
+                    byte er = ePixels[i + 2];
+                    byte ea = ePixels[i + 3];
+                    if (ea > 180 && (Math.Abs(er - eg) > 15 || Math.Abs(eg - eb) > 15))
+                    {
+                        coloredEmojiPixels++;
+                    }
+                }
+            }
+            if (coloredEmojiPixels > 100)
+            {
+                Pass("Direct2D 真彩色 Emoji 渲染", $"96x96 coloredPixels={coloredEmojiPixels}");
+            }
+            else
+            {
+                Fail("Direct2D 真彩色 Emoji 渲染", $"coloredPixels={coloredEmojiPixels}");
+            }
+
+            // 8. 滚动截长图拼接引擎自测（含固定顶栏/固定底栏剔除与多步长精确位移匹配）
+            const int lsW = 300;
+            const int lsViewH = 260;
+            const int lsHeaderH = 34;
+            const int lsFooterH = 26;
+            const int lsScrollBodyH = lsViewH - lsHeaderH - lsFooterH; // 200
+            const int lsVirtualContentH = 620;
+
+            byte[] MakeSyntheticViewport(int scrollOffset)
+            {
+                byte[] buf = new byte[lsW * lsViewH * 4];
+                for (int y = 0; y < lsViewH; y++)
+                {
+                    int rowOff = y * lsW * 4;
+                    for (int x = 0; x < lsW; x++)
+                    {
+                        int idx = rowOff + x * 4;
+                        if (y < lsHeaderH)
+                        {
+                            buf[idx] = 45; buf[idx + 1] = 45; buf[idx + 2] = 52; buf[idx + 3] = 255;
+                        }
+                        else if (y >= lsViewH - lsFooterH)
+                        {
+                            buf[idx] = 240; buf[idx + 1] = 240; buf[idx + 2] = 245; buf[idx + 3] = 255;
+                        }
+                        else
+                        {
+                            int contentY = Math.Min(lsVirtualContentH - 1, scrollOffset + (y - lsHeaderH));
+                            int block = contentY / 17;
+                            int stripe = ((x / 11) + block * 3 + (contentY % 13)) % 7;
+                            buf[idx] = (byte)((contentY * 5 + x * 2 + stripe * 31) % 256);
+                            buf[idx + 1] = (byte)((block * 47 + stripe * 29 + (contentY % 23) * 9) % 256);
+                            buf[idx + 2] = (byte)((255 - (contentY * 3 % 200) + (x % 19) * 5) % 256);
+                            buf[idx + 3] = 255;
+                        }
+                    }
+                }
+                return buf;
+            }
+
+            var stitcher = new LongScreenshotStitcher(lsW, lsViewH);
+            int[] offsets = [0, 85, 190, 305, 420];
+            bool allStepsOk = true;
+            foreach (int off in offsets)
+            {
+                StitchFrameResult r = stitcher.TryAppendFrame(MakeSyntheticViewport(off));
+                if (off == 0 && r.Status != StitchFrameStatus.FirstFrame) allStepsOk = false;
+                if (off > 0 && r.Status != StitchFrameStatus.Appended) allStepsOk = false;
+            }
+            int expectedTotalH = lsHeaderH + lsScrollBodyH + offsets[^1] + lsFooterH; // 34 + 200 + 420 + 26 = 680
+            Imaging.BitmapSource stitchedFinal = stitcher.BuildFinalBitmap();
+            Imaging.BitmapSource stitchedPreview = stitcher.BuildPreviewBitmap();
+
+            if (allStepsOk &&
+                Math.Abs(stitcher.TotalHeight - expectedTotalH) <= 2 &&
+                stitcher.StickyTopRows >= lsHeaderH - 2 &&
+                stitcher.StickyBottomRows >= lsFooterH - 2 &&
+                stitchedFinal.PixelHeight == stitcher.TotalHeight &&
+                stitchedPreview.PixelWidth > 0)
+            {
+                Pass("滚动截长图拼接引擎", $"height={stitcher.TotalHeight}/{expectedTotalH}, sticky=({stitcher.StickyTopRows},{stitcher.StickyBottomRows})");
+            }
+            else
+            {
+                Fail("滚动截长图拼接引擎", $"allStepsOk={allStepsOk}, height={stitcher.TotalHeight}/{expectedTotalH}, sticky=({stitcher.StickyTopRows},{stitcher.StickyBottomRows})");
             }
         }
         finally

@@ -30,6 +30,9 @@ internal sealed class AppConfig
     public int Fps { get; set; } = 60;
     public AudioCaptureMode AudioMode { get; set; } = AudioCaptureMode.Both;
     public CloseButtonBehavior CloseBehavior { get; set; } = CloseButtonBehavior.Ask;
+    public bool AutoCheckUpdates { get; set; } = true;
+    public string? SkippedUpdateVersion { get; set; }
+    public DateTime LastUpdateCheckUtc { get; set; } = DateTime.MinValue;
 
     public static string GetDefaultOutputDirectory()
     {

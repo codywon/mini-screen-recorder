@@ -1,0 +1,143 @@
+name: Release MiniRec
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（例如 1.1.0，无需带 v 前缀）'
+        required: true
+        type: string
+      notes:
+        description: '可选：自定义更新说明（留空则自动根据提交生成）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: meta
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if ($env:EVENT_NAME -eq "workflow_dispatch") {
+            $raw = "$env:INPUT_VERSION".Trim()
+          } else {
+            $raw = "$env:REF_NAME".Trim()
+          }
+
+          $ver = $raw.TrimStart('v', 'V')
+          if ($ver -notmatch '^\d+\.\d+\.\d+$') {
+            throw "版本号格式无效: '$raw'，请使用 X.Y.Z（例如 v1.1.0 或 1.1.0）"
+          }
+
+          $tag = "v$ver"
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Resolved release version: $ver (tag: $tag)"
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish single-file win-x64 executable
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.meta.outputs.version }}"
+          $outDir = Join-Path $PWD "release-out"
+          $distDir = Join-Path $PWD "release-assets"
+          New-Item -ItemType Directory -Force -Path $outDir, $distDir | Out-Null
+
+          dotnet publish MiniRec.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:Version="$ver" `
+            -p:AssemblyVersion="$ver.0" `
+            -p:FileVersion="$ver.0" `
+            -p:InformationalVersion="$ver" `
+            -p:PublishSingleFile=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -o $outDir
+
+          $builtExe = Join-Path $outDir "MiniRec.exe"
+          if (-not (Test-Path $builtExe)) {
+            throw "未找到编译产物: $builtExe"
+          }
+
+          $assetExe = Join-Path $distDir "MiniRec-win-x64.exe"
+          Copy-Item $builtExe $assetExe -Force
+
+          $hash = (Get-FileHash -Path $assetExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  MiniRec-win-x64.exe" | Out-File -FilePath (Join-Path $distDir "SHA256SUMS.txt") -Encoding ascii -NoNewline
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $sizeKb = [math]::Round((Get-Item $assetExe).Length / 1KB, 1)
+          Write-Host "Built MiniRec-win-x64.exe ($sizeKb KB), SHA256=$hash"
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_NOTES: ${{ inputs.notes }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $ver = "${{ steps.meta.outputs.version }}"
+          $customNotes = "$env:CUSTOM_NOTES".Trim()
+
+          $assetExe = "release-assets/MiniRec-win-x64.exe"
+          $assetSums = "release-assets/SHA256SUMS.txt"
+
+          $exists = $false
+          gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { $exists = $true }
+
+          if (-not $exists) {
+            if ([string]::IsNullOrWhiteSpace($customNotes)) {
+              gh release create $tag $assetExe $assetSums `
+                --title "MiniRec $tag" `
+                --generate-notes
+            } else {
+              gh release create $tag $assetExe $assetSums `
+                --title "MiniRec $tag" `
+                --notes $customNotes
+            }
+          } else {
+            gh release upload $tag $assetExe $assetSums --clobber
+          }
+
+          $releaseJson = gh release view $tag --json body,url,publishedAt | ConvertFrom-Json
+          $hash = (Get-FileHash -Path $assetExe -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          $manifest = [ordered]@{
+            version     = $ver
+            tag         = $tag
+            publishedAt = $releaseJson.publishedAt
+            assetName   = "MiniRec-win-x64.exe"
+            downloadUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/MiniRec-win-x64.exe"
+            releaseUrl  = $releaseJson.url
+            sha256      = $hash
+            notes       = if ([string]::IsNullOrWhiteSpace($releaseJson.body)) { "常规优化与体验改进。" } else { $releaseJson.body }
+          }
+
+          $manifestPath = "release-assets/latest.json"
+          $manifest | ConvertTo-Json -Depth 4 | Out-File -FilePath $manifestPath -Encoding utf8
+          gh release upload $tag $manifestPath --clobber
+          Write-Host "Release $tag published with latest.json"

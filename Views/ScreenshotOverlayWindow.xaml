@@ -9,6 +9,8 @@
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
         Cursor="Cross"
         Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown"
@@ -19,11 +21,12 @@
         MouseRightButtonDown="Window_MouseRightButtonDown">
 
     <Window.Resources>
+        <!-- 微信 4.0 风格主工具栏图标按钮（36×34 宽敞舒展热区 + 纤细线性风格） -->
         <Style x:Key="ShotToolbarIconBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="28" />
-            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Width" Value="36" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#334155" />
+            <Setter Property="Foreground" Value="#333333" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
@@ -39,17 +42,17 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                                <Setter TargetName="Bd" Property="Background" Value="#F3F4F6" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#CBD5E1" />
+                                <Setter TargetName="Bd" Property="Background" Value="#E5E7EB" />
                             </Trigger>
                             <Trigger Property="Tag" Value="Active">
-                                <Setter TargetName="Bd" Property="Background" Value="#E6F8EE" />
+                                <Setter TargetName="Bd" Property="Background" Value="#E8F8EF" />
                                 <Setter Property="Foreground" Value="#07C160" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.32" />
+                                <Setter Property="Opacity" Value="0.30" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -57,32 +60,24 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ShotToolbarPillBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="26" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="Background" Value="#E2E8F0" />
-            <Setter Property="Foreground" Value="#1E293B" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontSize" Value="11.5" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Focusable" Value="False" />
+        <!-- 取消退出图标按钮（微信同款透明底柔红细叉号） -->
+        <Style x:Key="DangerToolbarIconBtnStyle" TargetType="Button" BasedOn="{StaticResource ShotToolbarIconBtnStyle}">
+            <Setter Property="Foreground" Value="#F05252" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
+                                CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.9" />
+                                <Setter TargetName="Bd" Property="Background" Value="#FFF1F0" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                                <Setter TargetName="Bd" Property="Background" Value="#FFE1DF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -90,31 +85,24 @@
             </Setter>
         </Style>
 
-        <Style x:Key="PrimaryConfirmBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="26" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="Background" Value="#07C160" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Margin" Value="2,0,0,0" />
+        <!-- 微信 4.0 同款透明底微信绿对勾完成按钮 -->
+        <Style x:Key="PrimaryConfirmBtnStyle" TargetType="Button" BasedOn="{StaticResource ShotToolbarIconBtnStyle}">
+            <Setter Property="Foreground" Value="#07C160" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
+                                CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#06AD56" />
+                                <Setter TargetName="Bd" Property="Background" Value="#E8F8EF" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#05984B" />
+                                <Setter TargetName="Bd" Property="Background" Value="#D3F3E1" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -122,13 +110,14 @@
             </Setter>
         </Style>
 
+        <!-- 二级栏 / OCR 栏文字操作按钮 -->
         <Style x:Key="SubBarModeBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="22" />
-            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#475569" />
+            <Setter Property="Foreground" Value="#374151" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Template">
@@ -136,31 +125,39 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="5"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                                <Setter TargetName="Bd" Property="Background" Value="#F2F3F5" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E5E7EB" />
                             </Trigger>
                             <Trigger Property="Tag" Value="Active">
-                                <Setter TargetName="Bd" Property="Background" Value="#E6F8EE" />
+                                <Setter TargetName="Bd" Property="Background" Value="#E8F8EF" />
                                 <Setter Property="Foreground" Value="#07C160" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
+        <!-- 二级样式栏：画笔粗细/字号圆点按钮 -->
         <Style x:Key="SizeDotBtnStyle" TargetType="Button">
-            <Setter Property="Width" Value="24" />
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="2,0" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="Foreground" Value="#6B7280" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
@@ -171,16 +168,16 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="Transparent"
                                 BorderThickness="1.5"
-                                CornerRadius="12">
+                                CornerRadius="14">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                                <Setter TargetName="Bd" Property="Background" Value="#F2F3F5" />
                             </Trigger>
                             <Trigger Property="Tag" Value="Active">
-                                <Setter TargetName="Bd" Property="Background" Value="#E6F8EE" />
+                                <Setter TargetName="Bd" Property="Background" Value="#E8F8EF" />
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="#07C160" />
                                 <Setter Property="Foreground" Value="#07C160" />
                             </Trigger>
@@ -190,15 +187,38 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ShotResizeHandleStyle" TargetType="Rectangle">
-            <Setter Property="Width" Value="8" />
-            <Setter Property="Height" Value="8" />
+        <!-- 选区 8 向精致圆点缩放手柄（微信 4.0 极细绿系 + 白色描边） -->
+        <Style x:Key="ShotResizeHandleStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="6" />
             <Setter Property="Fill" Value="#07C160" />
             <Setter Property="Stroke" Value="#FFFFFF" />
-            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="StrokeThickness" Value="1.3" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
+
+        <!-- 放大镜细腻像素网格画刷（每格 9×9 DIP 严格对齐单个物理像素） -->
+        <DrawingBrush x:Key="MagnifierPixelGridBrush"
+                      TileMode="Tile"
+                      Viewport="0,0,9,9"
+                      ViewportUnits="Absolute"
+                      Viewbox="0,0,9,9"
+                      ViewboxUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#2A808080" Thickness="0.7" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <LineGeometry StartPoint="0,0" EndPoint="9,0" />
+                            <LineGeometry StartPoint="0,0" EndPoint="0,9" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
     </Window.Resources>
 
     <Grid>
@@ -209,8 +229,8 @@
                IsHitTestVisible="False" />
 
         <Canvas x:Name="RootCanvas" Background="Transparent">
-            <!-- 半透明暗色遮罩，选区或吸附控件通过 CombinedGeometry 镂空 -->
-            <Path x:Name="DimOverlayPath" Fill="#88000000" IsHitTestVisible="False" />
+            <!-- 清爽通透的暗色遮罩（40% 不透明度），选区或吸附控件通过 CombinedGeometry 镂空 -->
+            <Path x:Name="DimOverlayPath" Fill="#66000000" IsHitTestVisible="False" />
 
             <!-- 矢量标注实时渲染图层（严格裁切在选区内） -->
             <local:AnnotationLayerElement x:Name="AnnotationLayer" />
@@ -218,46 +238,47 @@
             <!-- Phase 3 原图沉浸式自由划词图层 -->
             <local:OcrSelectionLayer x:Name="OcrSelectionLayer" Visibility="Collapsed" />
 
-            <!-- 选区边框（微信绿 2px） -->
+            <!-- 选区边框（微信 4.0 实拍同款极细微信绿 #07C160，悬停吸附 2.5px / 编辑拖拽 1.5px 外描边） -->
             <Border x:Name="SelectionBorder"
                     Visibility="Collapsed"
                     BorderBrush="#07C160"
-                    BorderThickness="2"
+                    BorderThickness="1.5"
                     Background="Transparent"
+                    SnapsToDevicePixels="True"
                     IsHitTestVisible="False" />
 
-            <!-- 8 个缩放手柄 -->
-            <Rectangle x:Name="HandleTL" Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleT"  Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleTR" Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleR"  Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleBR" Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleB"  Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleBL" Style="{StaticResource ShotResizeHandleStyle}" />
-            <Rectangle x:Name="HandleL"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <!-- 8 个精致圆点缩放手柄 -->
+            <Ellipse x:Name="HandleTL" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleT"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleTR" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleR"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleBR" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleB"  Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleBL" Style="{StaticResource ShotResizeHandleStyle}" />
+            <Ellipse x:Name="HandleL"  Style="{StaticResource ShotResizeHandleStyle}" />
 
-            <!-- 选区物理像素尺寸标签 -->
+            <!-- 选区物理像素尺寸胶囊（微信紧凑深黑风格） -->
             <Border x:Name="SizeBadge"
                     Visibility="Collapsed"
-                    Background="#CC0F172A"
+                    Background="#C81C1C1E"
                     CornerRadius="4"
-                    Padding="7,2"
+                    Padding="8,3"
                     IsHitTestVisible="False">
                 <TextBlock x:Name="SizeBadgeText"
-                           Foreground="#F8FAFC"
-                           FontFamily="Consolas, Segoe UI"
-                           FontSize="12"
-                           FontWeight="SemiBold" />
+                           Foreground="#F5F5F7"
+                           FontFamily="Segoe UI, Consolas, Microsoft YaHei UI"
+                           FontSize="11.5"
+                           FontWeight="Medium" />
             </Border>
 
             <!-- 原位透明文字标注输入框 -->
             <Border x:Name="InlineTextBoxContainer"
                     Visibility="Collapsed"
                     BorderBrush="#07C160"
-                    BorderThickness="1"
-                    Background="#22000000"
+                    BorderThickness="1.2"
+                    Background="#28000000"
                     CornerRadius="3"
-                    Padding="2,1">
+                    Padding="3,1">
                 <TextBox x:Name="InlineTextBox"
                          Background="Transparent"
                          BorderThickness="0"
@@ -272,83 +293,118 @@
                          LostKeyboardFocus="InlineTextBox_LostKeyboardFocus" />
             </Border>
 
-            <!-- 放大镜 + 取色浮窗 -->
+            <!-- 微信风格宽屏像素放大镜 + 取色浮窗（17×11 物理像素 × 9倍 = 153×99） -->
             <Border x:Name="MagnifierPanel"
                     Visibility="Collapsed"
-                    Background="#EE0F172A"
-                    BorderBrush="#475569"
+                    Background="#EE1C1C1E"
+                    BorderBrush="#40FFFFFF"
                     BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="4"
+                    CornerRadius="6"
+                    Padding="0"
                     IsHitTestVisible="False">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="10"
-                                      ShadowDepth="2"
-                                      Opacity="0.4"
+                    <DropShadowEffect BlurRadius="16"
+                                      ShadowDepth="4"
+                                      Direction="270"
+                                      Opacity="0.34"
                                       Color="#000000" />
                 </Border.Effect>
-                <StackPanel Width="135">
-                    <Grid Width="135" Height="135" ClipToBounds="True">
-                        <Image x:Name="MagnifierImage"
-                               Width="135"
-                               Height="135"
-                               Stretch="Fill"
-                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                        <!-- 十字准星（中心 9x9 对应物理中心像素） -->
-                        <Border Height="1" Background="#8807C160" VerticalAlignment="Center" />
-                        <Border Width="1" Background="#8807C160" HorizontalAlignment="Center" />
-                        <Border Width="9"
-                                Height="9"
-                                BorderBrush="#07C160"
-                                BorderThickness="1.5"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                    </Grid>
-                    <StackPanel Margin="3,5,3,2">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Width="153">
+                    <!-- 放大像素视窗（紧贴卡片顶部边缘，带细腻像素网格 + 中心镂空高反差十字准星） -->
+                    <Border BorderBrush="#26FFFFFF" BorderThickness="0,0,0,1">
+                        <Grid Width="153"
+                              Height="99"
+                              Clip="M 0,5 A 5,5 0 0 1 5,0 L 148,0 A 5,5 0 0 1 153,5 L 153,99 L 0,99 Z"
+                              SnapsToDevicePixels="True">
+                            <Image x:Name="MagnifierImage"
+                                   Width="153"
+                                   Height="99"
+                                   Stretch="Fill"
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
+
+                            <!-- 像素格网 -->
+                            <Rectangle Width="153"
+                                       Height="99"
+                                       Fill="{StaticResource MagnifierPixelGridBrush}" />
+
+                            <!-- 中心像素 [72..81, 45..54] 完全镂空的四向高对比十字准星 -->
+                            <Canvas Width="153" Height="99">
+                                <!-- 暗色托底确保在白色/亮绿背景上同样清晰 -->
+                                <Rectangle Canvas.Left="0"  Canvas.Top="48" Width="70" Height="3" Fill="#66000000" />
+                                <Rectangle Canvas.Left="83" Canvas.Top="48" Width="70" Height="3" Fill="#66000000" />
+                                <Rectangle Canvas.Left="75" Canvas.Top="0"  Width="3" Height="43" Fill="#66000000" />
+                                <Rectangle Canvas.Left="75" Canvas.Top="56" Width="3" Height="43" Fill="#66000000" />
+
+                                <!-- 微信绿十字核心线 -->
+                                <Rectangle Canvas.Left="0"  Canvas.Top="49" Width="70" Height="1" Fill="#F007C160" />
+                                <Rectangle Canvas.Left="83" Canvas.Top="49" Width="70" Height="1" Fill="#F007C160" />
+                                <Rectangle Canvas.Left="76" Canvas.Top="0"  Width="1" Height="43" Fill="#F007C160" />
+                                <Rectangle Canvas.Left="76" Canvas.Top="56" Width="1" Height="43" Fill="#F007C160" />
+
+                                <!-- 精准外框：紧贴中心 9×9 像素格外部，绝不遮挡中心像素颜色 -->
+                                <Border Canvas.Left="70"
+                                        Canvas.Top="43"
+                                        Width="13"
+                                        Height="13"
+                                        BorderBrush="#99000000"
+                                        BorderThickness="1" />
+                                <Border Canvas.Left="71"
+                                        Canvas.Top="44"
+                                        Width="11"
+                                        Height="11"
+                                        BorderBrush="#FFFFFF"
+                                        BorderThickness="1" />
+                            </Canvas>
+                        </Grid>
+                    </Border>
+
+                    <!-- 底部紧凑暗色信息区 -->
+                    <StackPanel Margin="8,6,8,6">
+                        <TextBlock x:Name="CoordText"
+                                   Text="POS: 0, 0"
+                                   Foreground="#B4B4BC"
+                                   FontFamily="Consolas, Segoe UI"
+                                   FontSize="10.5" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,3,0,0">
                             <Border x:Name="ColorSwatch"
-                                    Width="13"
-                                    Height="13"
-                                    CornerRadius="3"
-                                    BorderBrush="#94A3B8"
+                                    Width="11"
+                                    Height="11"
+                                    CornerRadius="2"
+                                    BorderBrush="#B0FFFFFF"
                                     BorderThickness="1"
                                     Margin="0,0,6,0" />
                             <TextBlock x:Name="ColorValueText"
                                        Text="#000000"
-                                       Foreground="#F8FAFC"
+                                       Foreground="#F5F5F7"
                                        FontFamily="Consolas, Segoe UI"
-                                       FontSize="11"
+                                       FontSize="11.5"
                                        FontWeight="SemiBold"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock x:Name="CoordText"
-                                   Text="0, 0"
-                                   Foreground="#94A3B8"
-                                   FontFamily="Consolas, Segoe UI"
-                                   FontSize="10.5"
-                                   Margin="0,2,0,0" />
                         <TextBlock x:Name="MagnifierHintText"
-                                   Text="C 复制色值 · Shift 切换"
-                                   Foreground="#64748B"
+                                   Text="C 复制 · Shift 切换"
+                                   Foreground="#8E8E93"
+                                   FontFamily="Microsoft YaHei UI, Segoe UI"
                                    FontSize="10"
-                                   Margin="0,1,0,0" />
+                                   Margin="0,3,0,0" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- 微信风格主标注工具条（纯矢量图标） -->
+            <!-- 微信 4.0 同款纯白主标注工具条（纤细线性图标 + 宽敞留白 + 无实心块完成对勾） -->
             <Border x:Name="ActionToolbar"
                     Visibility="Collapsed"
-                    Background="#F8FAFC"
-                    BorderBrush="#CBD5E1"
+                    Background="#FFFFFF"
+                    BorderBrush="#14000000"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="6,4"
+                    Padding="8,5"
                     Cursor="Arrow">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="10"
-                                      ShadowDepth="2"
-                                      Opacity="0.35"
+                    <DropShadowEffect BlurRadius="20"
+                                      ShadowDepth="4"
+                                      Direction="270"
+                                      Opacity="0.16"
                                       Color="#000000" />
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -357,20 +413,41 @@
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="矩形 (1 · 按住 Shift 正方形)"
                             Click="ToolButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
-                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.6"
-                              Data="M 2,3 H 14 V 13 H 2 Z" />
+                        <Rectangle Width="17" Height="15" RadiusX="1.8" RadiusY="1.8"
+                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                   StrokeThickness="1.45" />
                     </Button>
 
-                    <!-- 椭圆 (2) -->
+                    <!-- 圆形 / 椭圆 (2) -->
                     <Button x:Name="EllipseToolBtn"
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="椭圆 (2 · 按住 Shift 正圆)"
                             Click="ToolButton_Click">
-                        <Ellipse Width="14" Height="11"
+                        <Ellipse Width="17" Height="17"
                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                 StrokeThickness="1.6" />
+                                 StrokeThickness="1.45" />
+                    </Button>
+
+                    <!-- Emoji 表情贴纸（微信实拍同款笑脸图标）(9) -->
+                    <Button x:Name="EmojiToolBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="Emoji 彩色表情贴纸 (9)"
+                            Click="ToolButton_Click">
+                        <Grid Width="17" Height="17">
+                            <Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                     StrokeThickness="1.45" />
+                            <Ellipse Width="2.1" Height="2.1"
+                                     Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4.4,5.4,0,0" />
+                            <Ellipse Width="2.1" Height="2.1"
+                                     Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5.4,4.4,0" />
+                            <Path Stretch="None"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.35"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Data="M 5.2,10.2 C 6.3,12.2 10.7,12.2 11.8,10.2" />
+                        </Grid>
                     </Button>
 
                     <!-- 箭头 (3) -->
@@ -378,11 +455,11 @@
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="箭头 (3)"
                             Click="ToolButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.7"
+                              StrokeThickness="1.5"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 2,13 L 13,2 M 7,2 H 13 V 8" />
+                              Data="M 3,14 L 14,3 M 7.5,3 H 14 V 9.5" />
                     </Button>
 
                     <!-- 画笔 (4) -->
@@ -390,11 +467,11 @@
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="画笔 (4)"
                             Click="ToolButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.5"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 11.5,2.5 L 13.5,4.5 L 5.5,12.5 L 2.5,13.5 L 3.5,10.5 Z M 9.5,4.5 L 11.5,6.5" />
+                              Data="M 12,2.5 L 14.5,5 L 6,13.5 L 2.5,14.5 L 3.5,11 Z M 9.8,4.7 L 12.3,7.2" />
                     </Button>
 
                     <!-- 荧光笔 (5) -->
@@ -402,11 +479,11 @@
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="荧光笔 (5 · 半透明高亮)"
                             Click="ToolButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.6"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 9,2 L 13,6 L 6.5,12.5 L 2.5,12.5 L 2.5,8.5 Z M 2,14.5 H 14" />
+                              Data="M 10,2 L 14.5,6.5 L 7.2,13.8 L 3,13.8 L 3,9.6 Z M 2,16 H 15" />
                     </Button>
 
                     <!-- 序号 (6) -->
@@ -414,12 +491,12 @@
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="序号标注 ①②③ (6)"
                             Click="ToolButton_Click">
-                        <Grid Width="15" Height="15">
+                        <Grid Width="17" Height="17">
                             <Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                     StrokeThickness="1.5" />
+                                     StrokeThickness="1.45" />
                             <TextBlock Text="1"
-                                       FontSize="9.5"
-                                       FontWeight="Bold"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
@@ -427,29 +504,39 @@
                         </Grid>
                     </Button>
 
-                    <!-- 马赛克 (7) -->
+                    <!-- 马赛克（微信同款带外框细棋盘格）(7) -->
                     <Button x:Name="MosaicToolBtn"
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="马赛克 / 模糊打码 (7)"
                             Click="ToolButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
-                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              Data="M2,2 H6 V6 H2 Z M10,2 H14 V6 H10 Z M6,6 H10 V10 H6 Z M2,10 H6 V14 H2 Z M10,10 H14 V14 H10 Z" />
+                        <Grid Width="17" Height="17">
+                            <Rectangle RadiusX="2" RadiusY="2"
+                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       StrokeThickness="1.4" />
+                            <Path Width="11" Height="11" Stretch="Uniform"
+                                  Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  Data="M0,0 H3 V3 H0 Z M6,0 H9 V3 H6 Z M3,3 H6 V6 H3 Z M9,3 H12 V6 H9 Z M0,6 H3 V9 H0 Z M6,6 H9 V9 H6 Z M3,9 H6 V12 H3 Z M9,9 H12 V12 H9 Z" />
+                        </Grid>
                     </Button>
 
-                    <!-- 文字 (8) -->
+                    <!-- 文字（微信同款方框内嵌纯矢量居中 T）(8) -->
                     <Button x:Name="TextToolBtn"
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="文字标注 (8)"
                             Click="ToolButton_Click">
-                        <TextBlock Text="T"
-                                   FontFamily="Georgia, Times New Roman"
-                                   FontSize="15"
-                                   FontWeight="Bold"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <Grid Width="17" Height="17">
+                            <Rectangle RadiusX="2.2" RadiusY="2.2"
+                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       StrokeThickness="1.4" />
+                            <Path Stretch="None"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.45"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Data="M 5.2,5.3 H 11.8 M 8.5,5.3 V 12.1" />
+                        </Grid>
                     </Button>
 
-                    <Border Width="1" Height="18" Background="#CBD5E1" Margin="4,0" />
+                    <Border Width="1" Height="22" Background="#EAEAEA" Margin="6,0" />
 
                     <!-- 撤销 -->
                     <Button x:Name="UndoBtn"
@@ -457,11 +544,11 @@
                             IsEnabled="False"
                             ToolTip="撤销 (Ctrl+Z)"
                             Click="UndoButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.6"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 4,6 H 10 C 12.5,6 14,7.6 14,10 C 14,12.2 12.2,13.5 10,13.5 H 7 M 6.5,3.5 L 3.5,6 L 6.5,8.5" />
+                              Data="M 4.5,6.5 H 10.8 C 13.5,6.5 15.2,8.2 15.2,10.6 C 15.2,13 13.3,14.5 10.8,14.5 H 7.5 M 7.2,3.8 L 4,6.5 L 7.2,9.2" />
                     </Button>
 
                     <!-- 重做 -->
@@ -470,11 +557,11 @@
                             IsEnabled="False"
                             ToolTip="重做 (Ctrl+Y)"
                             Click="RedoButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.6"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 12,6 H 6 C 3.5,6 2,7.6 2,10 C 2,12.2 3.8,13.5 6,13.5 H 9 M 9.5,3.5 L 12.5,6 L 9.5,8.5" />
+                              Data="M 12.5,6.5 H 6.2 C 3.5,6.5 1.8,8.2 1.8,10.6 C 1.8,13 3.7,14.5 6.2,14.5 H 9.5 M 9.8,3.8 L 13,6.5 L 9.8,9.2" />
                     </Button>
 
                     <!-- 删除选中标注 -->
@@ -483,57 +570,79 @@
                             IsEnabled="False"
                             ToolTip="删除选中标注 (Delete)"
                             Click="DeleteAnnoButton_Click">
-                        <Path Width="14" Height="15" Stretch="Uniform"
+                        <Path Width="16" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.5"
+                              StrokeThickness="1.4"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 3,4.5 H 13 M 6,2.5 H 10 M 4.5,4.5 V 13.5 H 11.5 V 4.5 M 7,7 V 11 M 9,7 V 11" />
+                              Data="M 3,5 H 14 M 6.2,2.5 H 10.8 M 4.6,5 V 14.8 H 12.4 V 5 M 7.2,7.8 V 12.2 M 9.8,7.8 V 12.2" />
                     </Button>
 
-                    <Border Width="1" Height="18" Background="#CBD5E1" Margin="4,0" />
+                    <Border Width="1" Height="22" Background="#EAEAEA" Margin="6,0" />
 
                     <!-- 取色 / 吸管 (I) -->
                     <Button x:Name="ColorPickerBtn"
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="取色 / 吸管 (I · 左键或 C 复制 · Shift 切换 HEX/RGB)"
                             Click="ColorPickerButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.5"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 12.8,2.2 C 13.7,3.1 13.7,4.5 12.8,5.4 L 10.6,7.6 L 8.4,5.4 L 10.6,3.2 C 11.5,2.3 12,2 12.8,2.2 Z M 7.6,4.6 L 11.4,8.4 M 9.8,7.4 L 5.2,12 L 2.5,13.5 L 4,10.8 L 8.6,6.2" />
+                              Data="M 13.5,2.4 C 14.4,3.3 14.4,4.8 13.5,5.7 L 11.2,8 L 9,5.8 L 11.3,3.5 C 12.2,2.6 12.6,2.2 13.5,2.4 Z M 8.2,4.9 L 12.1,8.8 M 10.4,7.8 L 5.6,12.6 L 2.5,14.2 L 4.1,11.1 L 8.9,6.3" />
                     </Button>
 
-                    <!-- 提取文字 OCR (O) -->
+                    <!-- 提取文字 OCR（微信同款四角取景框内嵌 文）(O) -->
                     <Button x:Name="OcrBtn"
                             Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="提取文字 OCR (O)"
                             Click="OcrButton_Click">
-                        <TextBlock Text="文"
-                                   FontFamily="Microsoft YaHei UI, Segoe UI"
-                                   FontSize="13.5"
-                                   FontWeight="Bold"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <Grid Width="18" Height="18">
+                            <Path Stretch="None"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.4"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Data="M 1.5,5.5 V 2.5 A 1,1 0 0 1 2.5,1.5 H 5.5 M 12.5,1.5 H 15.5 A 1,1 0 0 1 16.5,2.5 V 5.5 M 16.5,12.5 V 15.5 A 1,1 0 0 1 15.5,16.5 H 12.5 M 5.5,16.5 H 2.5 A 1,1 0 0 1 1.5,15.5 V 12.5" />
+                            <TextBlock Text="文"
+                                       FontFamily="Microsoft YaHei UI, Segoe UI"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,-0.5,0,0" />
+                        </Grid>
+                    </Button>
+
+                    <!-- 滚动截长图（微信实拍同款上下框 + 双向箭头）(L) -->
+                    <Button x:Name="LongShotBtn"
+                            Style="{StaticResource ShotToolbarIconBtnStyle}"
+                            ToolTip="滚动截长图 (L · 支持手动滚轮与自动滚动拼接)"
+                            Click="LongShotButton_Click">
+                        <Path Width="17" Height="18" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 3,4.8 V 2.5 A 1,1 0 0 1 4,1.5 H 13 A 1,1 0 0 1 14,2.5 V 4.8 M 3,13.2 V 15.5 A 1,1 0 0 0 4,16.5 H 13 A 1,1 0 0 0 14,15.5 V 13.2 M 8.5,4.2 V 13.8 M 6.2,6.5 L 8.5,4.2 L 10.8,6.5 M 6.2,11.5 L 8.5,13.8 L 10.8,11.5" />
                     </Button>
 
                     <!-- 贴图 Pin -->
                     <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="钉在桌面上置顶贴图"
                             Click="PinButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.5"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 9.5,2 L 14,6.5 L 11,8 L 10,11 L 5,6 L 8,5 Z M 7.5,8.5 L 2.5,13.5" />
+                              Data="M 10,2 L 14.8,6.8 L 11.7,8.4 L 10.6,11.6 L 5.2,6.2 L 8.4,5.1 Z M 7.9,8.9 L 2.5,14.3" />
                     </Button>
 
                     <!-- 转入区域隐身录屏（统一红色录屏图标） -->
                     <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="以此选区立即开始隐身录屏"
                             Click="RecordNowButton_Click">
-                        <Grid Width="14" Height="14">
-                            <Ellipse Stroke="#EF4444" StrokeThickness="1.5" />
-                            <Ellipse Width="7" Height="7" Fill="#EF4444" />
+                        <Grid Width="16" Height="16">
+                            <Ellipse Stroke="#F05252" StrokeThickness="1.45" />
+                            <Ellipse Width="7" Height="7" Fill="#F05252" />
                         </Grid>
                     </Button>
 
@@ -541,47 +650,46 @@
                     <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="保存为 PNG 文件 (Ctrl+S)"
                             Click="SaveButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.5"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 8,2.5 V 10.5 M 5,7.5 L 8,10.5 L 11,7.5 M 2.5,11.5 V 13.5 H 13.5 V 11.5" />
+                              Data="M 8.5,2.5 V 11 M 5.2,8 L 8.5,11.3 L 11.8,8 M 2.5,11.5 V 14.2 H 14.5 V 11.5" />
                     </Button>
 
-                    <Border Width="1" Height="18" Background="#CBD5E1" Margin="4,0" />
+                    <Border Width="1" Height="22" Background="#EAEAEA" Margin="6,0" />
 
                     <!-- 重新框选 -->
                     <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
                             ToolTip="重新选择区域"
                             Click="ReselectButton_Click">
-                        <Path Width="15" Height="15" Stretch="Uniform"
+                        <Path Width="17" Height="17" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.5"
+                              StrokeThickness="1.45"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 13,8 A 5,5 0 1 1 11.5,4.5 M 12.5,2 V 5 H 9.5" />
+                              Data="M 14,8.5 A 5.5,5.5 0 1 1 12.2,4.5 M 13.5,2 V 5.2 H 10.3" />
                     </Button>
 
-                    <!-- 取消退出 -->
-                    <Button Style="{StaticResource ShotToolbarIconBtnStyle}"
-                            Foreground="#EF4444"
+                    <!-- 取消退出（微信同款透明底柔红细叉） -->
+                    <Button Style="{StaticResource DangerToolbarIconBtnStyle}"
                             ToolTip="取消退出 (Esc)"
                             Click="CancelButton_Click">
-                        <Path Width="13" Height="13" Stretch="Uniform"
+                        <Path Width="15" Height="15" Stretch="Uniform"
                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.8"
+                              StrokeThickness="1.65"
                               StrokeStartLineCap="Round"
-                              Data="M 3,3 L 12,12 M 12,3 L 3,12" />
+                              Data="M 3,3 L 12.5,12.5 M 12.5,3 L 3,12.5" />
                     </Button>
 
-                    <!-- 微信绿主完成按钮 -->
+                    <!-- 完成按钮（微信 4.0 同款透明底微信绿纤细对勾） -->
                     <Button Style="{StaticResource PrimaryConfirmBtnStyle}"
                             ToolTip="复制到剪贴板并完成 (Enter / 双击选区)"
                             Click="ConfirmButton_Click">
-                        <Path Width="14" Height="14" Stretch="Uniform"
-                              Stroke="#FFFFFF"
-                              StrokeThickness="2.1"
+                        <Path Width="18" Height="18" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.85"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Data="M 2.5,8 L 6.5,12 L 13.5,4" />
+                              Data="M 2.5,9.2 L 7.2,13.8 L 15.8,4.2" />
                     </Button>
                 </StackPanel>
             </Border>
@@ -589,16 +697,17 @@
             <!-- 二级样式浮条（粗细/字号/强度 + 色板或马赛克模式） -->
             <Border x:Name="StyleSubBar"
                     Visibility="Collapsed"
-                    Background="#F8FAFC"
-                    BorderBrush="#CBD5E1"
+                    Background="#FFFFFF"
+                    BorderBrush="#1F000000"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="7,4"
+                    Padding="10,5"
                     Cursor="Arrow">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="8"
-                                      ShadowDepth="2"
-                                      Opacity="0.3"
+                    <DropShadowEffect BlurRadius="16"
+                                      ShadowDepth="4"
+                                      Direction="270"
+                                      Opacity="0.16"
                                       Color="#000000" />
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -607,22 +716,22 @@
                             Style="{StaticResource SizeDotBtnStyle}"
                             ToolTip="细 / 小号"
                             Click="SizeSmallBtn_Click">
-                        <Ellipse Width="5" Height="5" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <Ellipse Width="6" Height="6" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button x:Name="SizeMediumBtn"
                             Style="{StaticResource SizeDotBtnStyle}"
                             ToolTip="中"
                             Click="SizeMediumBtn_Click">
-                        <Ellipse Width="9" Height="9" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <Ellipse Width="10" Height="10" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
                     <Button x:Name="SizeLargeBtn"
                             Style="{StaticResource SizeDotBtnStyle}"
                             ToolTip="粗 / 大号"
                             Click="SizeLargeBtn_Click">
-                        <Ellipse Width="13" Height="13" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        <Ellipse Width="14" Height="14" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                     </Button>
 
-                    <Border Width="1" Height="16" Background="#CBD5E1" Margin="6,0" />
+                    <Border Width="1" Height="18" Background="#E5E7EB" Margin="8,0" />
 
                     <!-- 8 色精选色板容器（由后台动态绑定选中高亮） -->
                     <StackPanel x:Name="ColorPalettePanel"
@@ -638,37 +747,45 @@
                                 Style="{StaticResource SubBarModeBtnStyle}"
                                 Content="像素块"
                                 Click="MosaicPixelBtn_Click"
-                                Margin="0,0,2,0" />
+                                Margin="0,0,4,0" />
                         <Button x:Name="MosaicBlurBtn"
                                 Style="{StaticResource SubBarModeBtnStyle}"
                                 Content="高斯模糊"
                                 Click="MosaicBlurBtn_Click" />
                     </StackPanel>
+
+                    <!-- Emoji 彩色表情选择面板（仅 Emoji 工具时显示，2行×12列） -->
+                    <WrapPanel x:Name="EmojiPickerPanel"
+                               Visibility="Collapsed"
+                               Width="384"
+                               Orientation="Horizontal"
+                               VerticalAlignment="Center" />
                 </StackPanel>
             </Border>
 
             <!-- 划词松手后的极简复制气泡 -->
             <Border x:Name="OcrSelectionBubble"
                     Visibility="Collapsed"
-                    Background="#F8FAFC"
-                    BorderBrush="#CBD5E1"
+                    Background="#FFFFFF"
+                    BorderBrush="#1F000000"
                     BorderThickness="1"
-                    CornerRadius="7"
-                    Padding="4,3"
+                    CornerRadius="8"
+                    Padding="5,4"
                     Cursor="Arrow">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="8"
-                                      ShadowDepth="2"
-                                      Opacity="0.32"
+                    <DropShadowEffect BlurRadius="14"
+                                      ShadowDepth="3"
+                                      Direction="270"
+                                      Opacity="0.18"
                                       Color="#000000" />
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Height="24"
-                            Padding="9,0"
+                    <Button Height="28"
+                            Padding="11,0"
                             Background="#07C160"
                             BorderThickness="0"
                             Foreground="#FFFFFF"
-                            FontSize="11.5"
+                            FontSize="12"
                             FontWeight="SemiBold"
                             Cursor="Hand"
                             Focusable="False"
@@ -678,61 +795,67 @@
                             Margin="0,0,4,0">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
-                                <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#06AD56" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
                             </ControlTemplate>
                         </Button.Template>
                     </Button>
                     <Button Style="{StaticResource SubBarModeBtnStyle}"
-                            Height="24"
+                            Height="28"
                             Content="去换行复制"
                             ToolTip="合并换行后复制所选文字"
                             Click="OcrBubbleJoinCopyBtn_Click" />
                 </StackPanel>
             </Border>
 
-            <!-- OCR 模式轻量单行操作栏（彻底替代狭小旁侧下拉框） -->
+            <!-- OCR 模式轻量单行操作栏 -->
             <Border x:Name="OcrActionBar"
                     Visibility="Collapsed"
-                    Background="#F8FAFC"
-                    BorderBrush="#CBD5E1"
+                    Background="#FFFFFF"
+                    BorderBrush="#1F000000"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="8,4"
+                    Padding="10,5"
                     Cursor="Arrow">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="8"
-                                      ShadowDepth="2"
-                                      Opacity="0.3"
+                    <DropShadowEffect BlurRadius="16"
+                                      ShadowDepth="4"
+                                      Direction="270"
+                                      Opacity="0.16"
                                       Color="#000000" />
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock x:Name="OcrBarStatusText"
                                Text="拖动原图划词"
-                               Foreground="#475569"
-                               FontSize="11.5"
+                               Foreground="#4B5563"
+                               FontSize="12"
                                VerticalAlignment="Center"
-                               Margin="2,0,8,0" />
-                    <Border Width="1" Height="14" Background="#CBD5E1" Margin="0,0,6,0" />
+                               Margin="2,0,10,0" />
+                    <Border Width="1" Height="16" Background="#E5E7EB" Margin="0,0,8,0" />
                     <Button x:Name="OcrSelectAllBtn"
                             Style="{StaticResource SubBarModeBtnStyle}"
                             Content="全选 (Ctrl+A)"
                             Click="OcrSelectAllBtn_Click"
-                            Margin="0,0,2,0" />
+                            Margin="0,0,4,0" />
                     <Button x:Name="OcrCopyAllBtn"
                             Style="{StaticResource SubBarModeBtnStyle}"
                             Content="复制全部"
                             Click="OcrCopyAllBtn_Click"
-                            Margin="0,0,2,0" />
+                            Margin="0,0,4,0" />
                     <Button x:Name="OcrOpenEditorBtn"
                             Style="{StaticResource SubBarModeBtnStyle}"
                             Content="大窗编辑"
                             ToolTip="在宽敞独立窗口中编辑全部文字"
                             Click="OcrOpenEditorBtn_Click"
-                            Margin="0,0,4,0" />
+                            Margin="0,0,6,0" />
                     <Button Style="{StaticResource SubBarModeBtnStyle}"
-                            Foreground="#EF4444"
+                            Foreground="#FA5151"
                             Content="退出"
                             Click="CloseOcrBtn_Click" />
                 </StackPanel>
@@ -740,16 +863,24 @@
 
             <!-- 顶部提示胶囊（兼作色值复制反馈） -->
             <Border x:Name="HintPill"
-                    Background="#DD0F172A"
-                    BorderBrush="#475569"
+                    Background="#CC1C1C1E"
+                    BorderBrush="#26FFFFFF"
                     BorderThickness="1"
-                    CornerRadius="10"
-                    Padding="14,6"
+                    CornerRadius="16"
+                    Padding="16,7"
                     IsHitTestVisible="False">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="12"
+                                      ShadowDepth="2"
+                                      Direction="270"
+                                      Opacity="0.25"
+                                      Color="#000000" />
+                </Border.Effect>
                 <TextBlock x:Name="HintPillText"
-                           Text="悬停自动吸附控件 · 滚轮切换层级 · 拖动框选 · C 复制色值 · Esc 取消"
-                           Foreground="#E2E8F0"
-                           FontSize="12.5" />
+                           Text="悬停自动吸附 · 拖动框选 · ↑↓←→ 微调 · C 复制色值并退出 · Esc 取消"
+                           Foreground="#F2F2F7"
+                           FontFamily="Microsoft YaHei UI, Segoe UI"
+                           FontSize="12" />
             </Border>
         </Canvas>
     </Grid>

@@ -31,16 +31,20 @@ public partial class MainWindow : Wpf.Window
     private HwndSource? _hwndSource;
     private bool _isConfiguringHotkeys;
     private bool _isCapturingScreenshot;
+    private bool _isCheckingUpdates;
     private bool _isBusy;
     private bool _allowRealClose;
     private string? _lastSavedFilePath;
     private CaptureRegion? _selectedRegion;
     private RegionGuideWindow? _guideWindow;
+    private UpdateWindow? _updateWindow;
     private Storyboard? _pulseStoryboard;
+    private readonly string? _updatedToVersion;
 
-    public MainWindow()
+    public MainWindow(string? updatedToVersion = null)
     {
         InitializeComponent();
+        _updatedToVersion = updatedToVersion;
 
         _config = _configStore.Load();
         UpdateRegionButton();
@@ -90,11 +94,20 @@ public partial class MainWindow : Wpf.Window
         _tray.CloseBehaviorSelected += behavior => Dispatcher.BeginInvoke(() => SetCloseBehavior(behavior));
         _tray.ToggleUiClicked += () => Dispatcher.BeginInvoke(ToggleVisibility);
         _tray.OpenFolderClicked += () => Dispatcher.BeginInvoke(OpenOutputFolder);
+        _tray.CheckUpdateClicked += () => Dispatcher.BeginInvoke(async () => await CheckForUpdatesAsync(manual: true));
         _tray.AboutClicked += () => Dispatcher.BeginInvoke(OpenAboutWindow);
         _tray.ExitClicked += () => Dispatcher.BeginInvoke(RequestExit);
 
-        Loaded += (_, _) => PositionTopRight();
+        Loaded += (_, _) =>
+        {
+            PositionTopRight();
+            if (!string.IsNullOrWhiteSpace(_updatedToVersion))
+            {
+                ShowBanner($"✓ 已成功更新至 v{_updatedToVersion}", isError: false);
+            }
+        };
         PositionTopRight();
+        ScheduleStartupUpdateCheck();
     }
 
     private void PositionTopRight()
@@ -695,6 +708,10 @@ public partial class MainWindow : Wpf.Window
                 _ = ToggleRecordingAsync();
                 break;
 
+            case ScreenshotOverlayOutcome.StartLongScreenshot when overlay.SelectedRegion is not null:
+                RunLongScreenshotSession(overlay.SelectedRegion);
+                break;
+
             case ScreenshotOverlayOutcome.OpenOcrWindow when overlay.OcrResult is not null:
                 Wpf.Rect? anchorDip = null;
                 if (overlay.SelectedRegion is { } sel)
@@ -714,6 +731,62 @@ public partial class MainWindow : Wpf.Window
 
             case ScreenshotOverlayOutcome.ColorCopied when !string.IsNullOrWhiteSpace(overlay.CopiedColorText):
                 ShowBanner($"✓ 已复制色值 {overlay.CopiedColorText}", isError: false);
+                break;
+        }
+    }
+
+    private void RunLongScreenshotSession(CaptureRegion region)
+    {
+        bool wasVisible = IsVisible;
+        if (wasVisible)
+        {
+            Hide();
+        }
+
+        var longWin = new LongScreenshotWindow(region, _config.ScreenshotDirectory);
+        longWin.ShowDialog();
+
+        if (wasVisible)
+        {
+            Show();
+            Activate();
+        }
+
+        switch (longWin.Outcome)
+        {
+            case LongScreenshotOutcome.Copied:
+                ShowBanner("✓ 长图已复制到剪贴板", isError: false);
+                break;
+
+            case LongScreenshotOutcome.Saved when !string.IsNullOrWhiteSpace(longWin.SavedFilePath):
+                _lastSavedFilePath = longWin.SavedFilePath;
+                ShowBanner($"✓ 已保存长图 {Path.GetFileName(longWin.SavedFilePath)}（点击定位文件）", isError: false);
+                break;
+
+            case LongScreenshotOutcome.Pinned when longWin.ResultBitmap is not null:
+                // 长图贴图限制初始高度不超过屏幕工作区 80%，按原比例缩放避免贴出屏幕外
+                int bmpW = longWin.ResultBitmap.PixelWidth;
+                int bmpH = longWin.ResultBitmap.PixelHeight;
+                int maxPinH = Math.Max(300, (int)(Wpf.SystemParameters.WorkArea.Height * 0.8));
+                int pinW = bmpW;
+                int pinH = bmpH;
+                if (pinH > maxPinH)
+                {
+                    double ratio = maxPinH / (double)pinH;
+                    pinW = Math.Max(80, (int)Math.Round(bmpW * ratio));
+                    pinH = maxPinH;
+                }
+                var pinRegion = new CaptureRegion(region.X, Math.Max(20, region.Y), pinW, pinH);
+                var pin = new PinImageWindow(longWin.ResultBitmap, pinRegion, _config.ScreenshotDirectory);
+                pin.CloseAllRequested += CloseAllPinWindows;
+                pin.Closed += (_, _) =>
+                {
+                    _pinWindows.Remove(pin);
+                    SyncTrayState();
+                };
+                _pinWindows.Add(pin);
+                SyncTrayState();
+                pin.Show();
                 break;
         }
     }
@@ -874,10 +947,148 @@ public partial class MainWindow : Wpf.Window
         }
     }
 
+    private void ScheduleStartupUpdateCheck()
+    {
+        if (!UpdateService.ShouldRunAutoCheck(_config)) return;
+
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        timer.Tick += async (_, _) =>
+        {
+            timer.Stop();
+            await CheckForUpdatesAsync(manual: false);
+        };
+        timer.Start();
+    }
+
+    private async Task<UpdateCheckResult> RunUpdateCheckAndRecordAsync()
+    {
+        UpdateCheckResult result = await UpdateService.CheckForUpdateAsync();
+        if (result.Status != UpdateCheckStatus.Failed)
+        {
+            _config.LastUpdateCheckUtc = DateTime.UtcNow;
+            _configStore.Save(_config);
+        }
+        return result;
+    }
+
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (_isCheckingUpdates) return;
+        _isCheckingUpdates = true;
+
+        try
+        {
+            if (manual && IsVisible)
+            {
+                ShowBanner("正在检查更新...", isError: false, persistent: true);
+            }
+
+            UpdateCheckResult result = await RunUpdateCheckAndRecordAsync();
+
+            if (result.Status == UpdateCheckStatus.UpdateAvailable && result.Release is not null)
+            {
+                string remoteVer = UpdateService.FormatVersion(result.Release.Version);
+                if (!manual && string.Equals(_config.SkippedUpdateVersion, remoteVer, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                if (!manual && (_isCapturingScreenshot || _recorder.IsRecording))
+                {
+                    return;
+                }
+
+                ShowUpdateWindow(result.Release);
+                return;
+            }
+
+            if (!manual) return;
+
+            if (!IsVisible)
+            {
+                Show();
+                Activate();
+            }
+
+            if (result.Status == UpdateCheckStatus.UpToDate)
+            {
+                ShowBanner($"✓ 当前 v{UpdateService.FormatVersion(result.CurrentVersion)} 已是最新版本", isError: false);
+            }
+            else
+            {
+                ShowBanner(result.ErrorMessage ?? "检查更新失败，请稍后重试", isError: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                if (!IsVisible)
+                {
+                    Show();
+                    Activate();
+                }
+                ShowBanner($"检查更新失败：{ex.Message}", isError: true);
+            }
+        }
+        finally
+        {
+            _isCheckingUpdates = false;
+        }
+    }
+
+    private void ShowUpdateWindow(UpdateReleaseInfo release)
+    {
+        if (_updateWindow is not null && _updateWindow.IsVisible)
+        {
+            _updateWindow.Activate();
+            return;
+        }
+
+        var win = new UpdateWindow(
+            UpdateService.GetCurrentVersion(),
+            release,
+            checkBusyBeforeUpdate: () =>
+            {
+                if (_recorder.IsRecording || _isBusy)
+                {
+                    return "当前正在录制视频，请先停止并保存录制后再执行更新。";
+                }
+                if (_isCapturingScreenshot)
+                {
+                    return "请先完成或退出当前截图后再执行更新。";
+                }
+                return null;
+            },
+            onSkipVersion: skippedVer =>
+            {
+                _config.SkippedUpdateVersion = skippedVer;
+                _configStore.Save(_config);
+            },
+            onExitForUpdate: () =>
+            {
+                _allowRealClose = true;
+                Close();
+            });
+
+        win.Closed += (_, _) => _updateWindow = null;
+        _updateWindow = win;
+        win.Show();
+        win.Activate();
+    }
+
     private void OpenAboutWindow()
     {
-        var about = new AboutWindow();
+        UpdateReleaseInfo? pendingUpdate = null;
+        var about = new AboutWindow(
+            checkUpdateAsync: RunUpdateCheckAndRecordAsync,
+            onUpdateAvailable: release => pendingUpdate = release);
         about.ShowDialog();
+
+        if (pendingUpdate is not null)
+        {
+            ShowUpdateWindow(pendingUpdate);
+        }
     }
 
     private void CloseButton_Click(object sender, Wpf.RoutedEventArgs e)
@@ -967,6 +1178,8 @@ public partial class MainWindow : Wpf.Window
         StopDotPulse();
         CloseGuideWindow();
         CloseAllPinWindows();
+        try { _updateWindow?.Close(); } catch { }
+        _updateWindow = null;
 
         if (_hwnd != IntPtr.Zero)
         {

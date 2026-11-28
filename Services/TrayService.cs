@@ -20,6 +20,7 @@ internal sealed class TrayService : IDisposable
     private readonly Forms.ToolStripMenuItem _closeBehaviorMenuItem;
     private readonly Forms.ToolStripMenuItem _toggleUiItem;
     private readonly Forms.ToolStripMenuItem _openFolderItem;
+    private readonly Forms.ToolStripMenuItem _checkUpdateItem;
     private readonly Forms.ToolStripMenuItem _aboutItem;
     private readonly Forms.ToolStripMenuItem _exitItem;
 
@@ -43,6 +44,7 @@ internal sealed class TrayService : IDisposable
     public event Action<CloseButtonBehavior>? CloseBehaviorSelected;
     public event Action? ToggleUiClicked;
     public event Action? OpenFolderClicked;
+    public event Action? CheckUpdateClicked;
     public event Action? AboutClicked;
     public event Action? ExitClicked;
 
@@ -60,6 +62,7 @@ internal sealed class TrayService : IDisposable
         _closeBehaviorMenuItem = new Forms.ToolStripMenuItem("关闭按钮行为");
         _toggleUiItem = new Forms.ToolStripMenuItem("显示/隐藏悬浮条");
         _openFolderItem = new Forms.ToolStripMenuItem("打开录制目录");
+        _checkUpdateItem = new Forms.ToolStripMenuItem("检查更新...");
         _aboutItem = new Forms.ToolStripMenuItem("关于 MiniRec...");
         _exitItem = new Forms.ToolStripMenuItem("退出");
 
@@ -112,6 +115,7 @@ internal sealed class TrayService : IDisposable
         _autoStartItem.Click += (_, _) => AutoStartToggled?.Invoke();
         _toggleUiItem.Click += (_, _) => ToggleUiClicked?.Invoke();
         _openFolderItem.Click += (_, _) => OpenFolderClicked?.Invoke();
+        _checkUpdateItem.Click += (_, _) => CheckUpdateClicked?.Invoke();
         _aboutItem.Click += (_, _) => AboutClicked?.Invoke();
         _exitItem.Click += (_, _) => ExitClicked?.Invoke();
 
@@ -130,6 +134,7 @@ internal sealed class TrayService : IDisposable
         menu.Items.Add(_toggleUiItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(_openFolderItem);
+        menu.Items.Add(_checkUpdateItem);
         menu.Items.Add(_aboutItem);
         menu.Items.Add(_exitItem);
 

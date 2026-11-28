@@ -125,6 +125,90 @@ internal sealed unsafe class ScreenSnapshot
         return new ScreenSnapshot(vx, vy, vw, vh, buffer);
     }
 
+    /// <summary>
+    /// 直接截取指定物理坐标区域的 BGRA32 字节缓冲（专供滚动截长图高频抓帧，避免截取整个虚拟桌面）。
+    /// </summary>
+    public static byte[] CaptureRegionBgra(CaptureRegion region)
+    {
+        if (region.Width <= 0 || region.Height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(region), "抓帧区域宽高必须大于 0");
+        }
+
+        int w = region.Width;
+        int h = region.Height;
+        byte[] buffer = new byte[checked(w * h * 4)];
+
+        IntPtr screenDc = Win32Interop.GetDC(IntPtr.Zero);
+        if (screenDc == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("无法获取桌面绘图上下文 (GetDC)");
+        }
+
+        IntPtr memDc = IntPtr.Zero;
+        IntPtr dibBitmap = IntPtr.Zero;
+        IntPtr oldBitmap = IntPtr.Zero;
+
+        try
+        {
+            memDc = Win32Interop.CreateCompatibleDC(screenDc);
+            if (memDc == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("无法创建兼容绘图上下文 (CreateCompatibleDC)");
+            }
+
+            var bmi = new Win32Interop.BITMAPINFO
+            {
+                bmiHeader = new Win32Interop.BITMAPINFOHEADER
+                {
+                    biSize = (uint)Marshal.SizeOf<Win32Interop.BITMAPINFOHEADER>(),
+                    biWidth = w,
+                    biHeight = -h,
+                    biPlanes = 1,
+                    biBitCount = 32,
+                    biCompression = 0
+                }
+            };
+
+            dibBitmap = Win32Interop.CreateDIBSection(memDc, ref bmi, 0, out IntPtr bitsPtr, IntPtr.Zero, 0);
+            if (dibBitmap == IntPtr.Zero || bitsPtr == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("无法创建区域抓帧缓冲区 (CreateDIBSection)");
+            }
+
+            oldBitmap = Win32Interop.SelectObject(memDc, dibBitmap);
+
+            if (!Win32Interop.BitBlt(
+                    memDc,
+                    0,
+                    0,
+                    w,
+                    h,
+                    screenDc,
+                    region.X,
+                    region.Y,
+                    Win32Interop.SRCCOPY | Win32Interop.CAPTUREBLT))
+            {
+                int err = Marshal.GetLastWin32Error();
+                throw new InvalidOperationException($"区域抓帧失败 (BitBlt, error={err})");
+            }
+
+            Marshal.Copy(bitsPtr, buffer, 0, buffer.Length);
+        }
+        finally
+        {
+            if (memDc != IntPtr.Zero)
+            {
+                if (oldBitmap != IntPtr.Zero) Win32Interop.SelectObject(memDc, oldBitmap);
+                if (dibBitmap != IntPtr.Zero) Win32Interop.DeleteObject(dibBitmap);
+                Win32Interop.DeleteDC(memDc);
+            }
+            Win32Interop.ReleaseDC(IntPtr.Zero, screenDc);
+        }
+
+        return buffer;
+    }
+
     public Imaging.BitmapSource CreateFullBitmapSource()
     {
         var bmp = Imaging.BitmapSource.Create(
@@ -157,25 +241,29 @@ internal sealed unsafe class ScreenSnapshot
         return true;
     }
 
-    public void CopyMagnifierPatch(int centerPhysX, int centerPhysY, int patchSize, byte[] destBgr32)
+    public void CopyMagnifierPatch(int centerPhysX, int centerPhysY, int patchSize, byte[] destBgr32) =>
+        CopyMagnifierPatch(centerPhysX, centerPhysY, patchSize, patchSize, destBgr32);
+
+    public void CopyMagnifierPatch(int centerPhysX, int centerPhysY, int patchWidth, int patchHeight, byte[] destBgr32)
     {
-        int expectedLen = checked(patchSize * patchSize * 4);
+        int expectedLen = checked(patchWidth * patchHeight * 4);
         if (destBgr32.Length < expectedLen)
         {
             throw new ArgumentException("放大镜缓冲区大小不足", nameof(destBgr32));
         }
 
-        int half = patchSize / 2;
-        int startX = centerPhysX - half;
-        int startY = centerPhysY - half;
+        int halfW = patchWidth / 2;
+        int halfH = patchHeight / 2;
+        int startX = centerPhysX - halfW;
+        int startY = centerPhysY - halfH;
 
-        for (int row = 0; row < patchSize; row++)
+        for (int row = 0; row < patchHeight; row++)
         {
             int py = startY + row - VirtualY;
-            int destRowOffset = row * patchSize * 4;
+            int destRowOffset = row * patchWidth * 4;
             bool validY = py >= 0 && py < Height;
 
-            for (int col = 0; col < patchSize; col++)
+            for (int col = 0; col < patchWidth; col++)
             {
                 int px = startX + col - VirtualX;
                 int destIdx = destRowOffset + col * 4;
@@ -190,9 +278,9 @@ internal sealed unsafe class ScreenSnapshot
                 }
                 else
                 {
-                    destBgr32[destIdx] = 42;
-                    destBgr32[destIdx + 1] = 23;
-                    destBgr32[destIdx + 2] = 15;
+                    destBgr32[destIdx] = 24;
+                    destBgr32[destIdx + 1] = 24;
+                    destBgr32[destIdx + 2] = 24;
                     destBgr32[destIdx + 3] = 255;
                 }
             }

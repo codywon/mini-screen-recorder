@@ -16,7 +16,8 @@ internal enum AnnotationToolType
     Highlighter,
     NumberBadge,
     Mosaic,
-    Text
+    Text,
+    Emoji
 }
 
 internal enum MosaicMode
@@ -84,6 +85,13 @@ internal sealed record AnnotationStyle(
         AnnotationSizeLevel.Small => 5,
         AnnotationSizeLevel.Large => 16,
         _ => 10
+    };
+
+    public double EmojiSize => SizeLevel switch
+    {
+        AnnotationSizeLevel.Small => 36.0,
+        AnnotationSizeLevel.Large => 76.0,
+        _ => 54.0
     };
 }
 
@@ -642,5 +650,60 @@ internal sealed class TextAnnotation : AnnotationItem
         mainBrush.Freeze();
         Media.FormattedText mainFt = CreateFormattedText(mainBrush);
         dc.DrawText(mainFt, Position);
+    }
+}
+
+internal sealed class EmojiAnnotation : AnnotationItem
+{
+    public Wpf.Point Center { get; set; }
+    public string Emoji { get; set; }
+
+    public EmojiAnnotation(AnnotationStyle style, Wpf.Point center, string emoji) : base(style)
+    {
+        Center = center;
+        Emoji = emoji;
+    }
+
+    public override Wpf.Rect GetPhysicalBounds()
+    {
+        double size = Style.EmojiSize;
+        return new Wpf.Rect(Center.X - size / 2.0, Center.Y - size / 2.0, size, size);
+    }
+
+    public override bool HitTest(Wpf.Point physPt, double tolerance)
+    {
+        double half = Style.EmojiSize / 2.0 + Math.Max(4.0, tolerance * 0.6);
+        return Math.Abs(physPt.X - Center.X) <= half && Math.Abs(physPt.Y - Center.Y) <= half;
+    }
+
+    public override void Translate(double dx, double dy)
+    {
+        Center = new Wpf.Point(Center.X + dx, Center.Y + dy);
+    }
+
+    public override void Draw(Media.DrawingContext dc, MosaicSourceProvider? mosaicProvider)
+    {
+        if (string.IsNullOrWhiteSpace(Emoji)) return;
+
+        double size = Style.EmojiSize;
+        var rect = new Wpf.Rect(Center.X - size / 2.0, Center.Y - size / 2.0, size, size);
+
+        Imaging.BitmapSource? colorBmp = MiniRec.Native.ColorEmojiRenderer.RenderEmoji(Emoji, 128);
+        if (colorBmp is not null)
+        {
+            dc.DrawImage(colorBmp, rect);
+            return;
+        }
+
+        // 兜底回退（极少数不支持 Direct2D 彩色字体的老环境）
+        var ft = new Media.FormattedText(
+            Emoji,
+            CultureInfo.CurrentUICulture,
+            Wpf.FlowDirection.LeftToRight,
+            new Media.Typeface(new Media.FontFamily("Segoe UI Emoji"), Wpf.FontStyles.Normal, Wpf.FontWeights.Normal, Wpf.FontStretches.Normal),
+            size * 0.78,
+            Media.Brushes.Black,
+            1.0);
+        dc.DrawText(ft, new Wpf.Point(Center.X - ft.Width / 2.0, Center.Y - ft.Height / 2.0));
     }
 }

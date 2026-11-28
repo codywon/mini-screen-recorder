@@ -12,9 +12,10 @@ internal sealed class RegionGuideWindow : Wpf.Window
     private const int BorderThicknessPx = 2;
     private readonly CaptureRegion _region;
 
-    public RegionGuideWindow(CaptureRegion region)
+    public RegionGuideWindow(CaptureRegion region, Media.Color? borderColor = null)
     {
         _region = region.Normalize();
+        Media.Color color = borderColor ?? Media.Color.FromArgb(230, 239, 68, 68);
 
         Title = "MiniRec Region Guide";
         WindowStyle = Wpf.WindowStyle.None;
@@ -29,7 +30,7 @@ internal sealed class RegionGuideWindow : Wpf.Window
 
         Content = new Border
         {
-            BorderBrush = new Media.SolidColorBrush(Media.Color.FromArgb(230, 239, 68, 68)),
+            BorderBrush = new Media.SolidColorBrush(color),
             BorderThickness = new Wpf.Thickness(BorderThicknessPx),
             Background = Media.Brushes.Transparent,
             IsHitTestVisible = false

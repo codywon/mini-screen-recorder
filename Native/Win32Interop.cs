@@ -98,6 +98,35 @@ internal static class Win32Interop
         public IntPtr hbmColor;
     }
 
+    public const uint INPUT_MOUSE = 0;
+    public const uint MOUSEEVENTF_WHEEL = 0x0800;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct INPUTUNION
+    {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+        // Pad to 32 bytes (size of KEYBDINPUT/HARDWAREINPUT on 64-bit)
+        [FieldOffset(24)] public long _pad;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public uint type;
+        public INPUTUNION u;
+    }
+
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -204,6 +233,29 @@ internal static class Win32Interop
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetCursorPos(int X, int Y);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
+
+    public static void SendVerticalMouseWheel(int wheelDelta)
+    {
+        var inputs = new INPUT[]
+        {
+            new()
+            {
+                type = INPUT_MOUSE,
+                u = new INPUTUNION
+                {
+                    mi = new MOUSEINPUT
+                    {
+                        mouseData = unchecked((uint)wheelDelta),
+                        dwFlags = MOUSEEVENTF_WHEEL
+                    }
+                }
+            }
+        };
+        _ = SendInput(1, inputs, Marshal.SizeOf<INPUT>());
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowPos(

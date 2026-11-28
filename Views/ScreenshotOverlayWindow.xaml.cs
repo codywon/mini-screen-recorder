@@ -21,6 +21,7 @@ internal enum ScreenshotOverlayOutcome
     Saved,
     Pinned,
     StartRecording,
+    StartLongScreenshot,
     OpenOcrWindow,
     ColorCopied
 }
@@ -36,8 +37,11 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
     private const int MinSelectionPixels = 8;
     private const int DragThresholdPixels = 5;
-    private const double HandleSizeDip = 8.0;
-    private const int MagnifierPatchSize = 15;
+    private const double HandleSizeDip = 6.0;
+    private const double HoverBorderThicknessDip = 2.5;
+    private const double EditBorderThicknessDip = 1.5;
+    private const int MagnifierPatchWidth = 17;
+    private const int MagnifierPatchHeight = 11;
     private const string DefaultHoverHint = "悬停自动吸附 · 拖动框选 · ↑↓←→ 微调 · C 复制色值并退出 · Esc 取消";
 
     private static readonly Media.Color[] PaletteColors =
@@ -55,12 +59,13 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private readonly ScreenSnapshot _snapshot;
     private readonly UiElementDetector _detector;
     private readonly string _defaultSaveDir;
-    private readonly Shapes.Rectangle[] _handles;
+    private readonly Shapes.Ellipse[] _handles;
     private readonly Imaging.WriteableBitmap _magnifierBitmap;
-    private readonly byte[] _magnifierBuffer = new byte[MagnifierPatchSize * MagnifierPatchSize * 4];
+    private readonly byte[] _magnifierBuffer = new byte[MagnifierPatchWidth * MagnifierPatchHeight * 4];
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(1.8) };
     private readonly AnnotationEngine _annotationEngine = new();
     private readonly List<Controls.Border> _colorSwatchRings = [];
+    private readonly List<Controls.Border> _emojiPickerCells = [];
     private readonly Media.SolidColorBrush _colorSwatchBrush = new(Media.Colors.Black);
 
     private OverlayPhase _phase = OverlayPhase.Hovering;
@@ -84,6 +89,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     // Phase 2 标注工作台状态
     private AnnotationToolType _activeTool = AnnotationToolType.None;
     private AnnotationStyle _currentStyle = new(Media.Color.FromRgb(239, 68, 68), AnnotationSizeLevel.Medium, MosaicMode.Pixel);
+    private string _selectedEmoji = ColorEmojiRenderer.PresetEmojis[0];
     private bool _isDrawingAnnotation;
     private AnnotationItem? _previewAnnotation;
     private Wpf.Point _annoStartPhys;
@@ -125,8 +131,8 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         _handles = [HandleTL, HandleT, HandleTR, HandleR, HandleBR, HandleB, HandleBL, HandleL];
 
         _magnifierBitmap = new Imaging.WriteableBitmap(
-            MagnifierPatchSize,
-            MagnifierPatchSize,
+            MagnifierPatchWidth,
+            MagnifierPatchHeight,
             96,
             96,
             Media.PixelFormats.Bgr32,
@@ -143,6 +149,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         OcrSelectionLayer.SelectionCleared += () => OcrSelectionBubble.Visibility = Wpf.Visibility.Collapsed;
 
         BuildColorPalette();
+        BuildEmojiPicker();
         RefreshToolAndStyleUi();
 
         _toastTimer.Tick += (_, _) =>
@@ -170,21 +177,23 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             Media.Color captured = color;
             var ring = new Controls.Border
             {
-                Width = 20,
-                Height = 20,
-                CornerRadius = new Wpf.CornerRadius(10),
-                BorderThickness = new Wpf.Thickness(1.5),
-                Margin = new Wpf.Thickness(2, 0, 2, 0),
+                Width = 24,
+                Height = 24,
+                CornerRadius = new Wpf.CornerRadius(12),
+                BorderThickness = new Wpf.Thickness(1.8),
+                Margin = new Wpf.Thickness(3, 0, 3, 0),
                 Cursor = Input.Cursors.Hand,
                 Tag = captured,
                 Child = new Controls.Border
                 {
-                    Width = 14,
-                    Height = 14,
-                    CornerRadius = new Wpf.CornerRadius(7),
+                    Width = 18,
+                    Height = 18,
+                    CornerRadius = new Wpf.CornerRadius(9),
                     Background = new Media.SolidColorBrush(captured),
-                    BorderBrush = new Media.SolidColorBrush(Media.Color.FromRgb(148, 163, 184)),
-                    BorderThickness = new Wpf.Thickness(captured == Media.Colors.White ? 1.0 : 0.4),
+                    BorderBrush = new Media.SolidColorBrush(captured == Media.Colors.White
+                        ? Media.Color.FromRgb(203, 213, 225)
+                        : Media.Color.FromArgb(38, 0, 0, 0)),
+                    BorderThickness = new Wpf.Thickness(captured == Media.Colors.White ? 1.0 : 0.6),
                     HorizontalAlignment = Wpf.HorizontalAlignment.Center,
                     VerticalAlignment = Wpf.VerticalAlignment.Center
                 }
@@ -200,6 +209,83 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
             _colorSwatchRings.Add(ring);
             ColorPalettePanel.Children.Add(ring);
+        }
+    }
+
+    private void BuildEmojiPicker()
+    {
+        EmojiPickerPanel.Children.Clear();
+        _emojiPickerCells.Clear();
+
+        foreach (string emoji in ColorEmojiRenderer.PresetEmojis)
+        {
+            string captured = emoji;
+            Wpf.UIElement visualContent;
+            Imaging.BitmapSource? colorBmp = ColorEmojiRenderer.RenderEmoji(captured, 48);
+            if (colorBmp is not null)
+            {
+                visualContent = new Controls.Image
+                {
+                    Source = colorBmp,
+                    Width = 22,
+                    Height = 22,
+                    Stretch = Media.Stretch.Uniform
+                };
+            }
+            else
+            {
+                visualContent = new Controls.TextBlock
+                {
+                    Text = captured,
+                    FontFamily = new Media.FontFamily("Segoe UI Emoji"),
+                    FontSize = 16,
+                    HorizontalAlignment = Wpf.HorizontalAlignment.Center,
+                    VerticalAlignment = Wpf.VerticalAlignment.Center
+                };
+            }
+
+            var cell = new Controls.Border
+            {
+                Width = 30,
+                Height = 30,
+                CornerRadius = new Wpf.CornerRadius(6),
+                BorderThickness = new Wpf.Thickness(1.4),
+                BorderBrush = Media.Brushes.Transparent,
+                Background = Media.Brushes.Transparent,
+                Margin = new Wpf.Thickness(1),
+                Cursor = Input.Cursors.Hand,
+                Tag = captured,
+                Child = visualContent
+            };
+
+            cell.MouseEnter += (_, _) =>
+            {
+                if (!string.Equals(_selectedEmoji, captured, StringComparison.Ordinal))
+                {
+                    cell.Background = new Media.SolidColorBrush(Media.Color.FromRgb(243, 244, 246));
+                }
+            };
+            cell.MouseLeave += (_, _) =>
+            {
+                if (!string.Equals(_selectedEmoji, captured, StringComparison.Ordinal))
+                {
+                    cell.Background = Media.Brushes.Transparent;
+                }
+            };
+            cell.MouseLeftButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                _selectedEmoji = captured;
+                if (_annotationEngine.SelectedItem is EmojiAnnotation selectedEmojiAnno)
+                {
+                    selectedEmojiAnno.Emoji = captured;
+                    AnnotationLayer.Refresh();
+                }
+                RefreshToolAndStyleUi();
+            };
+
+            _emojiPickerCells.Add(cell);
+            EmojiPickerPanel.Children.Add(cell);
         }
     }
 
@@ -415,7 +501,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             return;
         }
 
-        if (!ctrl && key is >= Input.Key.D1 and <= Input.Key.D8)
+        if (!ctrl && key is >= Input.Key.D1 and <= Input.Key.D9)
         {
             e.Handled = true;
             AnnotationToolType picked = (key - Input.Key.D1) switch
@@ -428,9 +514,17 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
                 5 => AnnotationToolType.NumberBadge,
                 6 => AnnotationToolType.Mosaic,
                 7 => AnnotationToolType.Text,
+                8 => AnnotationToolType.Emoji,
                 _ => AnnotationToolType.None
             };
             ToggleActiveTool(picked);
+            return;
+        }
+
+        if (!ctrl && key == Input.Key.L)
+        {
+            e.Handled = true;
+            CompleteStartLongScreenshot();
             return;
         }
 
@@ -619,6 +713,13 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         {
             var badge = new NumberBadgeAnnotation(_currentStyle, physPt, _annotationEngine.NextBadgeNumber());
             _annotationEngine.Add(badge);
+            return;
+        }
+
+        if (_activeTool == AnnotationToolType.Emoji)
+        {
+            var sticker = new EmojiAnnotation(_currentStyle, physPt, _selectedEmoji);
+            _annotationEngine.Add(sticker);
             return;
         }
 
@@ -1119,6 +1220,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             nameof(NumberToolBtn) => AnnotationToolType.NumberBadge,
             nameof(MosaicToolBtn) => AnnotationToolType.Mosaic,
             nameof(TextToolBtn) => AnnotationToolType.Text,
+            nameof(EmojiToolBtn) => AnnotationToolType.Emoji,
             _ => AnnotationToolType.None
         };
 
@@ -1255,6 +1357,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         NumberToolBtn.Tag = _activeTool == AnnotationToolType.NumberBadge ? "Active" : null;
         MosaicToolBtn.Tag = _activeTool == AnnotationToolType.Mosaic ? "Active" : null;
         TextToolBtn.Tag = _activeTool == AnnotationToolType.Text ? "Active" : null;
+        EmojiToolBtn.Tag = _activeTool == AnnotationToolType.Emoji ? "Active" : null;
         ColorPickerBtn.Tag = _isColorPickerActive ? "Active" : null;
 
         UndoBtn.IsEnabled = _annotationEngine.CanUndo;
@@ -1269,13 +1372,26 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         MosaicBlurBtn.Tag = _currentStyle.MosaicMode == MosaicMode.Blur ? "Active" : null;
 
         bool isMosaic = _activeTool == AnnotationToolType.Mosaic;
-        ColorPalettePanel.Visibility = isMosaic ? Wpf.Visibility.Collapsed : Wpf.Visibility.Visible;
+        bool isEmoji = _activeTool == AnnotationToolType.Emoji;
+        ColorPalettePanel.Visibility = (!isMosaic && !isEmoji) ? Wpf.Visibility.Visible : Wpf.Visibility.Collapsed;
         MosaicModePanel.Visibility = isMosaic ? Wpf.Visibility.Visible : Wpf.Visibility.Collapsed;
+        EmojiPickerPanel.Visibility = isEmoji ? Wpf.Visibility.Visible : Wpf.Visibility.Collapsed;
 
         foreach (Controls.Border ring in _colorSwatchRings)
         {
             bool selected = ring.Tag is Media.Color c && c == _currentStyle.Color;
             ring.BorderBrush = selected
+                ? new Media.SolidColorBrush(Media.Color.FromRgb(7, 193, 96))
+                : Media.Brushes.Transparent;
+        }
+
+        foreach (Controls.Border cell in _emojiPickerCells)
+        {
+            bool selected = cell.Tag is string em && string.Equals(em, _selectedEmoji, StringComparison.Ordinal);
+            cell.Background = selected
+                ? new Media.SolidColorBrush(Media.Color.FromRgb(232, 248, 239))
+                : Media.Brushes.Transparent;
+            cell.BorderBrush = selected
                 ? new Media.SolidColorBrush(Media.Color.FromRgb(7, 193, 96))
                 : Media.Brushes.Transparent;
         }
@@ -1432,10 +1548,10 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         double canvasH = GetCanvasHeight();
 
         double left = Math.Clamp(tbLeft, 8, Math.Max(8, canvasW - barW - 8));
-        double top = tbTop + tbH + 5;
+        double top = tbTop + tbH + 7;
         if (top + barH > canvasH - 8)
         {
-            top = Math.Max(8, tbTop - barH - 5);
+            top = Math.Max(8, tbTop - barH - 7);
         }
 
         Canvas.SetLeft(OcrActionBar, left);
@@ -1454,6 +1570,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     }
 
     private void PinButton_Click(object sender, Wpf.RoutedEventArgs e) => CompletePin();
+    private void LongShotButton_Click(object sender, Wpf.RoutedEventArgs e) => CompleteStartLongScreenshot();
     private void RecordNowButton_Click(object sender, Wpf.RoutedEventArgs e) => CompleteStartRecording();
     private void ReselectButton_Click(object sender, Wpf.RoutedEventArgs e) => EnterHovering(DefaultHoverHint);
     private void SaveButton_Click(object sender, Wpf.RoutedEventArgs e) => CompleteSave();
@@ -1545,6 +1662,22 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
         SelectedRegion = _editRect;
         Outcome = ScreenshotOverlayOutcome.StartRecording;
+        DialogResult = true;
+        Close();
+    }
+
+    private void CompleteStartLongScreenshot()
+    {
+        if (_phase != OverlayPhase.Editing) return;
+
+        if (_editRect.Width < 32 || _editRect.Height < 64)
+        {
+            FlashToast("截长图选区至少需要 32×64 像素");
+            return;
+        }
+
+        SelectedRegion = _editRect;
+        Outcome = ScreenshotOverlayOutcome.StartLongScreenshot;
         DialogResult = true;
         Close();
     }
@@ -1717,11 +1850,11 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     {
         if (!_hasSource) return;
 
-        _snapshot.CopyMagnifierPatch(pt.X, pt.Y, MagnifierPatchSize, _magnifierBuffer);
+        _snapshot.CopyMagnifierPatch(pt.X, pt.Y, MagnifierPatchWidth, MagnifierPatchHeight, _magnifierBuffer);
         _magnifierBitmap.WritePixels(
-            new Wpf.Int32Rect(0, 0, MagnifierPatchSize, MagnifierPatchSize),
+            new Wpf.Int32Rect(0, 0, MagnifierPatchWidth, MagnifierPatchHeight),
             _magnifierBuffer,
-            MagnifierPatchSize * 4,
+            MagnifierPatchWidth * 4,
             0);
 
         if (_snapshot.TryGetPixel(pt.X, pt.Y, out byte r, out byte g, out byte b))
@@ -1729,8 +1862,8 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             _colorSwatchBrush.Color = Media.Color.FromRgb(r, g, b);
             ColorValueText.Text = FormatColor(r, g, b);
         }
-        CoordText.Text = $"{pt.X}, {pt.Y}";
-        MagnifierHintText.Text = _isColorPickerActive ? "左键/C 复制 · Shift 切换" : "C 复制色值 · Shift 切换";
+        CoordText.Text = $"POS: {pt.X}, {pt.Y}";
+        MagnifierHintText.Text = _isColorPickerActive ? "左键/C 复制 · Shift 切换" : "C 复制 · Shift 切换";
 
         bool needsLayout = MagnifierPanel.Visibility != Wpf.Visibility.Visible || MagnifierPanel.ActualWidth <= 0;
         MagnifierPanel.Visibility = Wpf.Visibility.Visible;
@@ -1740,22 +1873,22 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         }
 
         Wpf.Point cursorDip = PointFromScreen(new Wpf.Point(pt.X, pt.Y));
-        double magW = MagnifierPanel.ActualWidth > 0 ? MagnifierPanel.ActualWidth : 145;
-        double magH = MagnifierPanel.ActualHeight > 0 ? MagnifierPanel.ActualHeight : 205;
+        double magW = MagnifierPanel.ActualWidth > 0 ? MagnifierPanel.ActualWidth : 155;
+        double magH = MagnifierPanel.ActualHeight > 0 ? MagnifierPanel.ActualHeight : 162;
         double canvasW = GetCanvasWidth();
         double canvasH = GetCanvasHeight();
 
-        double left = cursorDip.X + 20;
+        double left = cursorDip.X + 18;
         if (left + magW > canvasW - 8)
         {
-            left = cursorDip.X - magW - 16;
+            left = cursorDip.X - magW - 14;
         }
         left = Math.Max(8, left);
 
-        double top = cursorDip.Y + 22;
+        double top = cursorDip.Y + 20;
         if (top + magH > canvasH - 8)
         {
-            top = cursorDip.Y - magH - 16;
+            top = cursorDip.Y - magH - 14;
         }
         top = Math.Max(8, top);
 
@@ -1782,23 +1915,44 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         AnnotationLayer.ClipDipRect = showHandlesAndToolbar ? selRect : Wpf.Rect.Empty;
         AnnotationLayer.Refresh();
 
+        double canvasW = GetCanvasWidth();
+        double canvasH = GetCanvasHeight();
+
         SelectionBorder.Visibility = Wpf.Visibility.Visible;
-        Canvas.SetLeft(SelectionBorder, dipX);
-        Canvas.SetTop(SelectionBorder, dipY);
-        SelectionBorder.Width = dipW;
-        SelectionBorder.Height = dipH;
+        if (_phase == OverlayPhase.Hovering)
+        {
+            // 悬停自动吸附态：3px 醒目亮青蓝内描边，确保全屏窗口吸附时四周依然可见
+            SelectionBorder.BorderThickness = new Wpf.Thickness(HoverBorderThicknessDip);
+            Canvas.SetLeft(SelectionBorder, dipX);
+            Canvas.SetTop(SelectionBorder, dipY);
+            SelectionBorder.Width = dipW;
+            SelectionBorder.Height = dipH;
+        }
+        else
+        {
+            // 框选/编辑态：1.5px 利落外描边，绝不压盖选区内部像素，触达屏幕边缘时自动夹紧可见
+            double t = EditBorderThicknessDip;
+            double bLeft = Math.Max(0, dipX - t);
+            double bTop = Math.Max(0, dipY - t);
+            double bRight = Math.Min(canvasW, dipX + dipW + t);
+            double bBottom = Math.Min(canvasH, dipY + dipH + t);
+            SelectionBorder.BorderThickness = new Wpf.Thickness(t);
+            Canvas.SetLeft(SelectionBorder, bLeft);
+            Canvas.SetTop(SelectionBorder, bTop);
+            SelectionBorder.Width = Math.Max(1, bRight - bLeft);
+            SelectionBorder.Height = Math.Max(1, bBottom - bTop);
+        }
 
         SizeBadgeText.Text = $"{region.Width} × {region.Height}";
         SizeBadge.Visibility = Wpf.Visibility.Visible;
         SizeBadge.UpdateLayout();
 
-        double badgeTop = dipY - SizeBadge.ActualHeight - 6;
-        if (badgeTop < 6)
+        double badgeTop = dipY - SizeBadge.ActualHeight - 8;
+        if (badgeTop < 8)
         {
-            badgeTop = dipY + 6;
+            badgeTop = dipY + 8;
         }
-        double canvasW = GetCanvasWidth();
-        double badgeLeft = Math.Clamp(dipX, 6, Math.Max(6, canvasW - SizeBadge.ActualWidth - 6));
+        double badgeLeft = Math.Clamp(dipX, 8, Math.Max(8, canvasW - SizeBadge.ActualWidth - 8));
         Canvas.SetLeft(SizeBadge, badgeLeft);
         Canvas.SetTop(SizeBadge, badgeTop);
 
@@ -1819,7 +1973,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
     private void SetHandlesVisibility(Wpf.Visibility visibility)
     {
-        foreach (Shapes.Rectangle h in _handles)
+        foreach (Shapes.Ellipse h in _handles)
         {
             h.Visibility = visibility;
         }
@@ -1843,7 +1997,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         SetHandlePos(HandleL, x - half, midY - half);
     }
 
-    private static void SetHandlePos(Shapes.Rectangle handle, double left, double top)
+    private static void SetHandlePos(Shapes.Ellipse handle, double left, double top)
     {
         Canvas.SetLeft(handle, left);
         Canvas.SetTop(handle, top);
@@ -1862,14 +2016,19 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         double left = dipX + dipW - tbW;
         left = Math.Clamp(left, 8, Math.Max(8, canvasW - tbW - 8));
 
-        double extraSubBarSpace = _activeTool != AnnotationToolType.None ? 40 : 0;
-        double top = dipY + dipH + 8;
+        double extraSubBarSpace = _activeTool switch
+        {
+            AnnotationToolType.Emoji => 82,
+            AnnotationToolType.None => 0,
+            _ => 48
+        };
+        double top = dipY + dipH + 10;
         if (top + tbH + extraSubBarSpace > canvasH - 8)
         {
-            double aboveTop = dipY - tbH - 8;
+            double aboveTop = dipY - tbH - 10;
             top = aboveTop - extraSubBarSpace >= 8
                 ? aboveTop
-                : Math.Max(8, dipY + dipH - tbH - 8);
+                : Math.Max(8, dipY + dipH - tbH - 10);
         }
 
         Canvas.SetLeft(ActionToolbar, left);
@@ -1894,10 +2053,10 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         double canvasH = GetCanvasHeight();
 
         double left = Math.Clamp(tbLeft, 8, Math.Max(8, canvasW - subW - 8));
-        double top = tbTop + tbH + 5;
+        double top = tbTop + tbH + 7;
         if (top + subH > canvasH - 8)
         {
-            top = Math.Max(8, tbTop - subH - 5);
+            top = Math.Max(8, tbTop - subH - 7);
         }
 
         Canvas.SetLeft(StyleSubBar, left);
