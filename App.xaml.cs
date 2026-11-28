@@ -606,6 +606,20 @@ public partial class App : Wpf.Application
             {
                 Fail("滚动截长图拼接引擎", $"allStepsOk={allStepsOk}, height={stitcher.TotalHeight}/{expectedTotalH}, sticky=({stitcher.StickyTopRows},{stitcher.StickyBottomRows})");
             }
+
+            // 9. 窗口吸附过滤规则自测（确保透明覆盖层/穿透窗不会挡死正常窗口吸附跳转）
+            bool normalWinOk = Win32Interop.ShouldIncludeWindowInSnap("Chrome_WidgetWin_1", 0x16CF0000L, 0x00000100L, 12, false, 255, 1280, 720, 1920, 1080);
+            bool transparentOverlayBlocked = !Win32Interop.ShouldIncludeWindowInSnap("RemoteOverlay", 0x96000000L, 0x00080028L, 0, false, 255, 1920, 1080, 1920, 1080);
+            bool zeroAlphaBlocked = !Win32Interop.ShouldIncludeWindowInSnap("QtWindow", 0x96000000L, 0x00080000L, 6, true, 0, 1920, 1080, 1920, 1080);
+            bool untitledToolBlocked = !Win32Interop.ShouldIncludeWindowInSnap("ShadowWnd", 0x96000000L, 0x08000080L, 0, false, 255, 800, 600, 1920, 1080);
+            if (normalWinOk && transparentOverlayBlocked && zeroAlphaBlocked && untitledToolBlocked)
+            {
+                Pass("窗口吸附透明覆盖层过滤", "normal=keep, transparent/alpha0/shadow=filtered");
+            }
+            else
+            {
+                Fail("窗口吸附透明覆盖层过滤", $"normal={normalWinOk}, trans={transparentOverlayBlocked}, alpha0={zeroAlphaBlocked}, tool={untitledToolBlocked}");
+            }
         }
         finally
         {

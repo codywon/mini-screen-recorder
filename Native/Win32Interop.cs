@@ -27,10 +27,16 @@ internal static class Win32Interop
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_SHOWWINDOW = 0x0040;
 
+    private const int GWL_STYLE = -16;
     private const int GWL_EXSTYLE = -20;
+    private const long WS_DISABLED = 0x08000000L;
+    private const long WS_CAPTION = 0x00C00000L;
+    private const long WS_THICKFRAME = 0x00040000L;
     private const long WS_EX_TRANSPARENT = 0x00000020L;
     private const long WS_EX_TOOLWINDOW = 0x00000080L;
+    private const long WS_EX_LAYERED = 0x00080000L;
     private const long WS_EX_NOACTIVATE = 0x08000000L;
+    private const uint LWA_ALPHA = 0x00000002u;
 
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     private const int DWMWA_CLOAKED = 14;
@@ -161,6 +167,12 @@ internal static class Win32Interop
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetLayeredWindowAttributes(IntPtr hwnd, out uint pcrKey, out byte pbAlpha, out uint pdwFlags);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
@@ -324,6 +336,69 @@ internal static class Win32Interop
             .Select(w => (w.X, w.Y, w.Width, w.Height))
             .ToList();
 
+    internal static bool ShouldIncludeWindowInSnap(
+        string className,
+        long style,
+        long exStyle,
+        int titleLength,
+        bool hasLayeredAlpha,
+        byte layeredAlpha,
+        int width,
+        int height,
+        int virtualWidth,
+        int virtualHeight)
+    {
+        if (width < 32 || height < 32) return false;
+
+        // 过滤禁用窗、鼠标穿透覆盖层（如远程控制/录屏/护眼/阴影 Overlay）
+        if ((style & WS_DISABLED) != 0) return false;
+        if ((exStyle & WS_EX_TRANSPARENT) != 0) return false;
+
+        // 过滤完全或几乎不可见的透明分层窗
+        if ((exStyle & WS_EX_LAYERED) != 0 && hasLayeredAlpha && layeredAlpha <= 15) return false;
+
+        // 过滤常见系统桌面/任务栏/透明输入壳类
+        if (className is
+            "Progman" or
+            "WorkerW" or
+            "Shell_TrayWnd" or
+            "Shell_SecondaryTrayWnd" or
+            "Windows.UI.Core.CoreWindow" or
+            "EdgeUiInputTopWndClass" or
+            "EdgeUiInputWndClass" or
+            "DummyDwmListenerWindow" or
+            "NarratorHelperWindow" or
+            "ForegroundStaging" or
+            "ApplicationManager_DesktopShellWindow" or
+            "MultitaskingViewFrame" or
+            "Xaml_WindowedPopupClass" or
+            "tooltips_class32")
+        {
+            return false;
+        }
+
+        // 无标题的 ToolWindow / NoActivate 浮窗通常是阴影壳、输入法或第三方透明覆盖层
+        if (titleLength == 0 && ((exStyle & WS_EX_TOOLWINDOW) != 0 || (exStyle & WS_EX_NOACTIVATE) != 0))
+        {
+            return false;
+        }
+
+        // 无标题且无常规窗口边框的全屏覆盖壳（避免把桌面底层所有真实窗口遮死）
+        bool coversNearlyFullScreen = virtualWidth > 0 && virtualHeight > 0 &&
+                                      width >= virtualWidth - 8 && height >= virtualHeight - 8;
+        if (coversNearlyFullScreen && titleLength == 0 && (style & (WS_CAPTION | WS_THICKFRAME)) == 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static long GetWindowLongAuto(IntPtr hwnd, int index) =>
+        IntPtr.Size == 8
+            ? GetWindowLongPtr64(hwnd, index).ToInt64()
+            : GetWindowLong32(hwnd, index);
+
     public static List<(IntPtr Hwnd, int X, int Y, int Width, int Height)> EnumerateVisibleWindowsWithHwnd(int excludeProcessId)
     {
         var results = new List<(IntPtr Hwnd, int X, int Y, int Width, int Height)>();
@@ -350,13 +425,22 @@ internal static class Win32Interop
             }
 
             var classNameBuilder = new StringBuilder(128);
-            if (GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity) > 0)
+            string cls = GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity) > 0
+                ? classNameBuilder.ToString()
+                : string.Empty;
+
+            long style = GetWindowLongAuto(hwnd, GWL_STYLE);
+            long exStyle = GetWindowLongAuto(hwnd, GWL_EXSTYLE);
+            int titleLen = GetWindowTextLength(hwnd);
+
+            bool hasLayeredAlpha = false;
+            byte layeredAlpha = 255;
+            if ((exStyle & WS_EX_LAYERED) != 0 &&
+                GetLayeredWindowAttributes(hwnd, out _, out byte alpha, out uint flags) &&
+                (flags & LWA_ALPHA) != 0)
             {
-                string cls = classNameBuilder.ToString();
-                if (cls is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Windows.UI.Core.CoreWindow")
-                {
-                    return true;
-                }
+                hasLayeredAlpha = true;
+                layeredAlpha = alpha;
             }
 
             RECT rect;
@@ -375,7 +459,7 @@ internal static class Win32Interop
 
             int width = right - left;
             int height = bottom - top;
-            if (width >= 32 && height >= 32)
+            if (ShouldIncludeWindowInSnap(cls, style, exStyle, titleLen, hasLayeredAlpha, layeredAlpha, width, height, vw, vh))
             {
                 results.Add((hwnd, left, top, width, height));
             }

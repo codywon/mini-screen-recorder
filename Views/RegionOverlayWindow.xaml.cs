@@ -31,6 +31,8 @@ public partial class RegionOverlayWindow : Wpf.Window
 
     private Win32Interop.POINT _dragStartPhys;
     private CaptureRegion? _hoverCandidate;
+    private CaptureRegion? _lastRenderedRegion;
+    private bool _lastRenderedShowChrome;
     private CaptureRegion _editRect = new(0, 0, 0, 0);
     private CaptureRegion _dragStartRect = new(0, 0, 0, 0);
     private RegionHitZone _activeHitZone = RegionHitZone.None;
@@ -360,6 +362,7 @@ public partial class RegionOverlayWindow : Wpf.Window
         _isEditingDrag = false;
         _activeHitZone = RegionHitZone.None;
         _hoverCandidate = null;
+        _lastRenderedRegion = null;
 
         Cursor = Input.Cursors.Cross;
         ActionToolbar.Visibility = Wpf.Visibility.Collapsed;
@@ -412,8 +415,9 @@ public partial class RegionOverlayWindow : Wpf.Window
         {
             RenderRegion(hitWindow, showHandlesAndToolbar: false);
         }
-        else
+        else if (_lastRenderedRegion is not null)
         {
+            _lastRenderedRegion = null;
             SelectionBorder.Visibility = Wpf.Visibility.Collapsed;
             SizeBadge.Visibility = Wpf.Visibility.Collapsed;
             UpdateOverlayGeometry(null);
@@ -423,6 +427,13 @@ public partial class RegionOverlayWindow : Wpf.Window
     private void RenderRegion(CaptureRegion region, bool showHandlesAndToolbar)
     {
         if (!_hasSource) return;
+
+        if (_lastRenderedRegion == region && _lastRenderedShowChrome == showHandlesAndToolbar)
+        {
+            return;
+        }
+        _lastRenderedRegion = region;
+        _lastRenderedShowChrome = showHandlesAndToolbar;
 
         Wpf.Point topLeft = PointFromScreen(new Wpf.Point(region.X, region.Y));
         Wpf.Point bottomRight = PointFromScreen(new Wpf.Point(region.X + region.Width, region.Y + region.Height));

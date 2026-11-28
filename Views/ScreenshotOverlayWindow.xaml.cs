@@ -63,6 +63,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private readonly Imaging.WriteableBitmap _magnifierBitmap;
     private readonly byte[] _magnifierBuffer = new byte[MagnifierPatchWidth * MagnifierPatchHeight * 4];
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(1.8) };
+    private readonly DispatcherTimer _subRegionStabilizeTimer = new() { Interval = TimeSpan.FromMilliseconds(45) };
     private readonly AnnotationEngine _annotationEngine = new();
     private readonly List<Controls.Border> _colorSwatchRings = [];
     private readonly List<Controls.Border> _emojiPickerCells = [];
@@ -79,6 +80,11 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private List<CaptureRegion> _hoverCandidates = [];
     private int _candidateIndex;
     private CaptureRegion? _hoverCandidate;
+    private IntPtr _lastHoverTopHwnd = IntPtr.Zero;
+    private CaptureRegion? _pendingSubRegion;
+    private CaptureRegion? _lastRenderedRegion;
+    private bool _lastRenderedShowChrome;
+    private OverlayPhase _lastRenderedPhase = OverlayPhase.Hovering;
     private CaptureRegion _editRect = new(0, 0, 0, 0);
     private CaptureRegion _dragStartRect = new(0, 0, 0, 0);
     private RegionHitZone _activeHitZone = RegionHitZone.None;
@@ -163,6 +169,17 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             else
             {
                 HintPill.Visibility = Wpf.Visibility.Collapsed;
+            }
+        };
+
+        _subRegionStabilizeTimer.Tick += (_, _) =>
+        {
+            _subRegionStabilizeTimer.Stop();
+            if (_phase == OverlayPhase.Hovering && _pendingSubRegion is { } target)
+            {
+                _pendingSubRegion = null;
+                _hoverCandidate = target;
+                RenderRegion(target, showHandlesAndToolbar: false);
             }
         };
     }
@@ -317,6 +334,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
         FrozenBgImage.Source = _snapshot.CreateFullBitmapSource();
 
+        _detector.PrewarmTopWindows(3);
         UpdateOverlayGeometry(null);
         PositionHintPill();
         Activate();
@@ -333,6 +351,7 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     protected override void OnClosed(EventArgs e)
     {
         _toastTimer.Stop();
+        _subRegionStabilizeTimer.Stop();
         _annotationEngine.Changed -= OnAnnotationEngineChanged;
         _detector.Dispose();
         base.OnClosed(e);
@@ -1771,6 +1790,10 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         _hoverCandidate = null;
         _hoverCandidates = [];
         _candidateIndex = 0;
+        _lastHoverTopHwnd = IntPtr.Zero;
+        _pendingSubRegion = null;
+        _subRegionStabilizeTimer.Stop();
+        _lastRenderedRegion = null;
 
         Cursor = Input.Cursors.Cross;
         ActionToolbar.Visibility = Wpf.Visibility.Collapsed;
@@ -1795,6 +1818,8 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private void EnterEditing(CaptureRegion rect)
     {
         _toastTimer.Stop();
+        _subRegionStabilizeTimer.Stop();
+        _pendingSubRegion = null;
         _phase = OverlayPhase.Editing;
         _isColorPickerActive = false;
         ColorPickerBtn.Tag = null;
@@ -1818,6 +1843,10 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
 
     private void UpdateHoverAtCursor(Win32Interop.POINT pt, bool resetCandidateIndex)
     {
+        IntPtr currentTopHwnd = _detector.FindTopWindowAt(pt.X, pt.Y)?.Hwnd ?? IntPtr.Zero;
+        bool switchedTopWindow = currentTopHwnd != _lastHoverTopHwnd;
+        _lastHoverTopHwnd = currentTopHwnd;
+
         _hoverCandidates = _detector.GetCandidateRegionsAt(pt.X, pt.Y, () =>
         {
             Dispatcher.BeginInvoke(() =>
@@ -1832,9 +1861,15 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
         if (_hoverCandidates.Count == 0)
         {
             _hoverCandidate = null;
-            SelectionBorder.Visibility = Wpf.Visibility.Collapsed;
-            SizeBadge.Visibility = Wpf.Visibility.Collapsed;
-            UpdateOverlayGeometry(null);
+            _pendingSubRegion = null;
+            _subRegionStabilizeTimer.Stop();
+            if (_lastRenderedRegion is not null)
+            {
+                _lastRenderedRegion = null;
+                SelectionBorder.Visibility = Wpf.Visibility.Collapsed;
+                SizeBadge.Visibility = Wpf.Visibility.Collapsed;
+                UpdateOverlayGeometry(null);
+            }
             return;
         }
 
@@ -1842,7 +1877,27 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
             ? 0
             : Math.Clamp(_candidateIndex, 0, _hoverCandidates.Count - 1);
 
-        _hoverCandidate = _hoverCandidates[_candidateIndex];
+        CaptureRegion nextCandidate = _hoverCandidates[_candidateIndex];
+
+        // 跨不同顶层窗口时 0ms 立即跳转；同一窗口内部子分区之间经 45ms 稳定计时器过渡，
+        // 鼠标高速划过时不乱闪，停稳立即精准吸附。
+        if (!switchedTopWindow &&
+            resetCandidateIndex &&
+            _hoverCandidate is not null &&
+            _hoverCandidate != nextCandidate)
+        {
+            if (_pendingSubRegion != nextCandidate)
+            {
+                _pendingSubRegion = nextCandidate;
+                _subRegionStabilizeTimer.Stop();
+                _subRegionStabilizeTimer.Start();
+            }
+            return;
+        }
+
+        _pendingSubRegion = null;
+        _subRegionStabilizeTimer.Stop();
+        _hoverCandidate = nextCandidate;
         RenderRegion(_hoverCandidate, showHandlesAndToolbar: false);
     }
 
@@ -1899,6 +1954,17 @@ public partial class ScreenshotOverlayWindow : Wpf.Window
     private void RenderRegion(CaptureRegion region, bool showHandlesAndToolbar)
     {
         if (!_hasSource) return;
+
+        // 选区、阶段与工具栏可见性均未变化时直接跳过，避免鼠标微动每像素重建全屏 CombinedGeometry 引发闪烁
+        if (_lastRenderedRegion == region &&
+            _lastRenderedShowChrome == showHandlesAndToolbar &&
+            _lastRenderedPhase == _phase)
+        {
+            return;
+        }
+        _lastRenderedRegion = region;
+        _lastRenderedShowChrome = showHandlesAndToolbar;
+        _lastRenderedPhase = _phase;
 
         Wpf.Point topLeft = PointFromScreen(new Wpf.Point(region.X, region.Y));
         Wpf.Point bottomRight = PointFromScreen(new Wpf.Point(region.X + region.Width, region.Y + region.Height));

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="发现新版本 - MiniRec"
-        Width="424"
+        Width="356"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -17,8 +17,8 @@
 
     <Window.Resources>
         <Style x:Key="UpdateSecondaryBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Padding" Value="13,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="12,0" />
             <Setter Property="Foreground" Value="#CBD5E1" />
             <Setter Property="Background" Value="#1E293B" />
             <Setter Property="BorderBrush" Value="#334155" />
@@ -52,8 +52,8 @@
         </Style>
 
         <Style x:Key="UpdatePrimaryBtnStyle" TargetType="Button">
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Padding" Value="15,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="14,0" />
             <Setter Property="Foreground" Value="#FFFFFF" />
             <Setter Property="Background" Value="#07C160" />
             <Setter Property="BorderThickness" Value="0" />
@@ -87,24 +87,24 @@
             </Setter>
         </Style>
 
-        <Style x:Key="UpdateLinkBtnStyle" TargetType="Button">
+        <Style x:Key="UpdateTextLinkStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#94A3B8" />
+            <Setter Property="Foreground" Value="#64748B" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="FontSize" Value="11.5" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
-            <Setter Property="Padding" Value="2,2" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#E2E8F0" />
+                                <Setter Property="Foreground" Value="#CBD5E1" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Opacity" Value="0.35" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -118,34 +118,33 @@
             BorderBrush="#334155"
             BorderThickness="1"
             CornerRadius="12"
-            Padding="18,15">
+            Padding="16,14">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="14"
+            <DropShadowEffect BlurRadius="12"
                               ShadowDepth="3"
                               Direction="270"
-                              Opacity="0.42"
+                              Opacity="0.4"
                               Color="#000000" />
         </Border.Effect>
 
         <StackPanel>
-            <!-- 标题栏 -->
-            <Grid Margin="0,0,0,12"
-                  Background="Transparent"
+            <!-- 标题行（可拖拽） -->
+            <Grid Background="Transparent"
                   MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="10" Height="10" Fill="#07C160" Margin="0,0,8,0" VerticalAlignment="Center" />
-                    <TextBlock Text="发现 MiniRec 新版本"
+                    <Ellipse Width="8" Height="8" Fill="#07C160" Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TitleVersionText"
+                               Text="发现新版本 v1.1.0"
                                Foreground="#F8FAFC"
-                               FontSize="14.5"
+                               FontSize="14"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center" />
                 </StackPanel>
-                <Button x:Name="CloseIconBtn"
-                        HorizontalAlignment="Right"
-                        Width="24"
-                        Height="24"
+                <Button HorizontalAlignment="Right"
+                        Width="22"
+                        Height="22"
                         Content="✕"
-                        Foreground="#94A3B8"
+                        Foreground="#64748B"
                         Background="Transparent"
                         BorderThickness="0"
                         Cursor="Hand"
@@ -153,55 +152,24 @@
                         Click="LaterButton_Click" />
             </Grid>
 
-            <!-- 版本对比胶囊 -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
-                <Border Background="#1E293B"
-                        BorderBrush="#334155"
-                        BorderThickness="1"
-                        CornerRadius="5"
-                        Padding="8,3">
-                    <TextBlock x:Name="CurrentVersionText"
-                               Text="v1.0.0"
-                               Foreground="#CBD5E1"
-                               FontFamily="Consolas, Segoe UI"
-                               FontSize="12" />
-                </Border>
-                <TextBlock Text="→"
-                           Foreground="#64748B"
-                           FontSize="13"
-                           Margin="8,0"
-                           VerticalAlignment="Center" />
-                <Border Background="#123A28"
-                        BorderBrush="#07C160"
-                        BorderThickness="1"
-                        CornerRadius="5"
-                        Padding="8,3">
-                    <TextBlock x:Name="RemoteVersionText"
-                               Text="v1.1.0"
-                               Foreground="#4ADE80"
-                               FontFamily="Consolas, Segoe UI"
-                               FontSize="12"
-                               FontWeight="SemiBold" />
-                </Border>
-                <TextBlock x:Name="PublishedDateText"
-                           Foreground="#64748B"
-                           FontSize="11.5"
-                           Margin="10,0,0,0"
-                           VerticalAlignment="Center" />
-            </StackPanel>
+            <!-- 极简版本副信息 -->
+            <TextBlock x:Name="SubInfoText"
+                       Text="当前 v1.0.0"
+                       Foreground="#64748B"
+                       FontFamily="Consolas, Segoe UI"
+                       FontSize="11.5"
+                       Margin="16,3,0,11" />
 
-            <!-- 更新说明 -->
-            <Border Background="#1E293B"
-                    BorderBrush="#334155"
-                    BorderThickness="1"
+            <!-- 精简更新内容区 -->
+            <Border Background="#162033"
                     CornerRadius="8"
-                    Padding="12,10"
+                    Padding="11,9"
                     Margin="0,0,0,12">
-                <ScrollViewer MaxHeight="148"
+                <ScrollViewer MaxHeight="104"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <TextBlock x:Name="NotesText"
-                               Foreground="#E2E8F0"
+                               Foreground="#CBD5E1"
                                FontFamily="Microsoft YaHei UI, Segoe UI"
                                FontSize="12"
                                LineHeight="19"
@@ -209,21 +177,21 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- 下载进度面板 -->
+            <!-- 下载进度（仅更新时展开） -->
             <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Margin="0,0,0,12">
                 <Grid Margin="0,0,0,5">
                     <TextBlock x:Name="ProgressStageText"
-                               Text="正在下载安装包..."
+                               Text="正在下载..."
                                Foreground="#CBD5E1"
                                FontSize="11.5" />
                     <TextBlock x:Name="ProgressDetailText"
                                HorizontalAlignment="Right"
                                Foreground="#94A3B8"
                                FontFamily="Consolas, Segoe UI"
-                               FontSize="11.5" />
+                               FontSize="11" />
                 </Grid>
                 <ProgressBar x:Name="DownloadProgressBar"
-                             Height="6"
+                             Height="4"
                              Minimum="0"
                              Maximum="100"
                              Background="#1E293B"
@@ -231,12 +199,10 @@
                              BorderThickness="0" />
             </StackPanel>
 
-            <!-- 状态/错误提示条 -->
+            <!-- 异常/手动兜底提示（仅失败或调试态显示） -->
             <Border x:Name="AlertBanner"
                     Visibility="Collapsed"
                     Background="#2A171C"
-                    BorderBrush="#7F1D1D"
-                    BorderThickness="1"
                     CornerRadius="7"
                     Padding="10,7"
                     Margin="0,0,0,12">
@@ -246,35 +212,36 @@
                                FontSize="11.5"
                                TextWrapping="Wrap"
                                LineHeight="17" />
-                    <Button x:Name="OpenDownloadedFolderBtn"
-                            Visibility="Collapsed"
-                            Style="{StaticResource UpdateLinkBtnStyle}"
-                            Foreground="#60A5FA"
-                            HorizontalAlignment="Left"
-                            Margin="0,4,0,0"
-                            Content="打开已下载文件所在目录 ↗"
-                            Click="OpenDownloadedFolderBtn_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                        <Button x:Name="OpenDownloadedFolderBtn"
+                                Visibility="Collapsed"
+                                Style="{StaticResource UpdateTextLinkStyle}"
+                                Foreground="#60A5FA"
+                                Margin="0,0,12,0"
+                                Content="打开下载目录 ↗"
+                                Click="OpenDownloadedFolderBtn_Click" />
+                        <Button x:Name="OpenReleaseLinkBtn"
+                                Style="{StaticResource UpdateTextLinkStyle}"
+                                Foreground="#60A5FA"
+                                Content="前往发布页手动下载 ↗"
+                                Click="OpenReleasePageButton_Click" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- 底部操作栏 -->
+            <!-- 底部极简操作栏 -->
             <Grid>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <Button x:Name="SkipVersionBtn"
-                            Style="{StaticResource UpdateLinkBtnStyle}"
-                            Content="忽略此版本"
-                            Margin="0,0,10,0"
-                            Click="SkipVersionButton_Click" />
-                    <Button Style="{StaticResource UpdateLinkBtnStyle}"
-                            Foreground="#60A5FA"
-                            Content="查看发布页 ↗"
-                            Click="OpenReleasePageButton_Click" />
-                </StackPanel>
+                <Button x:Name="SkipVersionBtn"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource UpdateTextLinkStyle}"
+                        Content="忽略此版本"
+                        Click="SkipVersionButton_Click" />
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="LaterBtn"
                             Style="{StaticResource UpdateSecondaryBtnStyle}"
-                            Content="稍后再说"
+                            Content="稍后"
                             Margin="0,0,8,0"
                             Click="LaterButton_Click" />
                     <Button x:Name="UpdateNowBtn"

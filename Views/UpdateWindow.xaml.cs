@@ -29,16 +29,62 @@ public partial class UpdateWindow : Wpf.Window
         _onSkipVersion = onSkipVersion;
         _onExitForUpdate = onExitForUpdate;
 
-        CurrentVersionText.Text = $"v{UpdateService.FormatVersion(currentVersion)}";
-        RemoteVersionText.Text = $"v{UpdateService.FormatVersion(release.Version)}";
-        if (release.PublishedAt is { } dt)
+        string curText = UpdateService.FormatVersion(currentVersion);
+        string nextText = UpdateService.FormatVersion(release.Version);
+
+        TitleVersionText.Text = $"发现新版本 v{nextText}";
+        SubInfoText.Text = release.PublishedAt is { } dt
+            ? $"当前 v{curText}  ·  {dt.ToLocalTime():yyyy-MM-dd}"
+            : $"当前 v{curText}";
+
+        NotesText.Text = FormatCleanNotes(release.Notes);
+    }
+
+    private static string FormatCleanNotes(string? rawNotes)
+    {
+        if (string.IsNullOrWhiteSpace(rawNotes))
         {
-            PublishedDateText.Text = dt.ToLocalTime().ToString("yyyy-MM-dd");
+            return "常规体验优化与问题修复，建议更新。";
         }
 
-        NotesText.Text = string.IsNullOrWhiteSpace(release.Notes)
-            ? "常规功能优化与体验改进，建议更新以获得最佳体验。"
-            : release.Notes.Trim();
+        List<string> lines = [];
+        foreach (string raw in rawNotes.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            string line = raw.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (line.StartsWith("## ", StringComparison.Ordinal) ||
+                line.StartsWith("### ", StringComparison.Ordinal) ||
+                line.StartsWith("**Full Changelog**", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (line.StartsWith("* ", StringComparison.Ordinal) || line.StartsWith("- ", StringComparison.Ordinal))
+            {
+                line = "• " + line[2..].Trim();
+            }
+
+            // 去掉 GitHub 自动生成日志尾部的 " by @user in https://..."
+            int byIdx = line.IndexOf(" by @", StringComparison.Ordinal);
+            if (byIdx > 0)
+            {
+                line = line[..byIdx].TrimEnd();
+            }
+            int urlIdx = line.IndexOf(" https://github.com/", StringComparison.OrdinalIgnoreCase);
+            if (urlIdx > 0)
+            {
+                line = line[..urlIdx].TrimEnd();
+            }
+
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                lines.Add(line);
+            }
+        }
+
+        return lines.Count > 0
+            ? string.Join(Environment.NewLine, lines)
+            : "常规体验优化与问题修复，建议更新。";
     }
 
     private void Header_MouseLeftButtonDown(object sender, Input.MouseButtonEventArgs e)
@@ -110,10 +156,10 @@ public partial class UpdateWindow : Wpf.Window
 
         SkipVersionBtn.IsEnabled = false;
         LaterBtn.IsEnabled = false;
-        UpdateNowBtn.Content = "取消下载";
+        UpdateNowBtn.Content = "取消";
         ProgressPanel.Visibility = Wpf.Visibility.Visible;
         DownloadProgressBar.IsIndeterminate = true;
-        ProgressStageText.Text = "正在连接下载服务器...";
+        ProgressStageText.Text = "正在连接...";
         ProgressDetailText.Text = string.Empty;
 
         try
@@ -125,7 +171,7 @@ public partial class UpdateWindow : Wpf.Window
                 {
                     DownloadProgressBar.IsIndeterminate = false;
                     DownloadProgressBar.Value = pct;
-                    ProgressDetailText.Text = $"{pct:0}% · {FormatSize(p.BytesReceived)} / {FormatSize(total)}";
+                    ProgressDetailText.Text = $"{pct:0}% · {FormatSize(p.BytesReceived)}/{FormatSize(total)}";
                 }
                 else
                 {
@@ -142,20 +188,20 @@ public partial class UpdateWindow : Wpf.Window
                 ResetIdleButtons("重新下载");
                 DownloadProgressBar.IsIndeterminate = false;
                 DownloadProgressBar.Value = 100;
-                ProgressStageText.Text = "新版安装包已下载并校验通过";
+                ProgressStageText.Text = "新版已下载并校验通过";
                 ShowAlert(cannotReason ?? "当前环境不支持自动替换，请手动替换。", showDownloadedFolder: true);
                 return;
             }
 
-            ProgressStageText.Text = "校验通过，正在启动更新并重启 MiniRec...";
+            ProgressStageText.Text = "校验通过，正在重启更新...";
             DownloadProgressBar.IsIndeterminate = false;
             DownloadProgressBar.Value = 100;
 
             string targetVerText = UpdateService.FormatVersion(_release.Version);
             if (!UpdateService.TryLaunchSelfUpdater(downloadedPath, targetVerText, out string? launchError))
             {
-                ResetIdleButtons("重试更新");
-                ShowAlert(launchError ?? "启动更新程序失败，请手动替换。", showDownloadedFolder: true);
+                ResetIdleButtons("重试");
+                ShowAlert(launchError ?? "启动更新脚本失败，请手动替换。", showDownloadedFolder: true);
                 return;
             }
 
@@ -169,7 +215,7 @@ public partial class UpdateWindow : Wpf.Window
         }
         catch (Exception ex)
         {
-            ResetIdleButtons("重试更新");
+            ResetIdleButtons("重试");
             ProgressPanel.Visibility = Wpf.Visibility.Collapsed;
             ShowAlert($"更新失败：{ex.Message}", showDownloadedFolder: false);
         }
